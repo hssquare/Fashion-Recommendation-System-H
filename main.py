@@ -190,35 +190,28 @@ if uploaded_file is not None:
 
         col1, col2, col3, col4, col5 = st.columns(5)
 
-        with col1:
-            st.header("I")
-            st.image(
-                img_files_list[indices[0]]
-            )
+        recommendations = [
+            ("I", 0),
+            ("II", 1),
+            ("III", 2),
+            ("IV", 3),
+            ("V", 4),
+        ]
 
-        with col2:
-            st.header("II")
-            st.image(
-                img_files_list[indices[1]]
-            )
+        for col, (label, position) in zip(
+            [col1, col2, col3, col4, col5],
+            recommendations
+        ):
+            with col:
+                st.header(label)
 
-        with col3:
-            st.header("III")
-            st.image(
-                img_files_list[indices[2]]
-            )
+                st.image(
+                    img_files_list[indices[position]]
+                )
 
-        with col4:
-            st.header("IV")
-            st.image(
-                img_files_list[indices[3]]
-            )
-
-        with col5:
-            st.header("V")
-            st.image(
-                img_files_list[indices[4]]
-            )
+                st.caption(
+                    f"Distance: {distances[position]:.4f}"
+                )
 
     else:
-        st.error("Could not process the uploaded image.")
+        st.error("Could not save the uploaded image.")
