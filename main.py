@@ -13,6 +13,13 @@ from tensorflow.keras.utils import load_img, img_to_array
 
 
 # ---------------------------------------------------------
+# Streamlit UI
+# ---------------------------------------------------------
+
+st.title("Fashion Recommendation System")
+
+
+# ---------------------------------------------------------
 # Load saved feature database
 # ---------------------------------------------------------
 
@@ -47,23 +54,27 @@ model = load_model()
 
 
 # ---------------------------------------------------------
-# Build nearest-neighbor index ONCE
+# Number of recommendations
+# ---------------------------------------------------------
+
+top_k = st.selectbox(
+    "Number of recommendations",
+    options=[5, 10, 15],
+    index=0
+)
+
+
+# ---------------------------------------------------------
+# Build nearest-neighbor index
 # ---------------------------------------------------------
 
 neighbors = NearestNeighbors(
-    n_neighbors=6,
+    n_neighbors=top_k + 1,
     algorithm="brute",
     metric="euclidean"
 )
 
 neighbors.fit(features_list)
-
-
-# ---------------------------------------------------------
-# Streamlit UI
-# ---------------------------------------------------------
-
-st.title("Fashion Recommendation System")
 
 
 # ---------------------------------------------------------
@@ -74,7 +85,10 @@ def save_file(uploaded_file):
     try:
         os.makedirs("uploader", exist_ok=True)
 
-        file_path = os.path.join("uploader", uploaded_file.name)
+        file_path = os.path.join(
+            "uploader",
+            uploaded_file.name
+        )
 
         with open(file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
@@ -82,7 +96,9 @@ def save_file(uploaded_file):
         return file_path
 
     except Exception as exc:
-        st.error(f"Could not save uploaded image: {exc}")
+        st.error(
+            f"Could not save uploaded image: {exc}"
+        )
         return None
 
 
@@ -119,7 +135,9 @@ def extract_img_features(img_path, model):
     if feature_norm == 0:
         return flatten_result
 
-    normalized_result = flatten_result / feature_norm
+    normalized_result = (
+        flatten_result / feature_norm
+    )
 
     return normalized_result
 
@@ -129,7 +147,9 @@ def extract_img_features(img_path, model):
 # ---------------------------------------------------------
 
 def recommend(features):
-    distances, indices = neighbors.kneighbors([features])
+    distances, indices = neighbors.kneighbors(
+        [features]
+    )
 
     return distances[0], indices[0]
 
@@ -186,32 +206,42 @@ if uploaded_file is not None:
         # Display recommendations
         # ---------------------------------------------
 
-        st.subheader("Recommended Products")
+        st.subheader(
+            f"Top {top_k} Recommended Products"
+        )
 
-        col1, col2, col3, col4, col5 = st.columns(5)
+        # Display results in rows of 5
+        for start in range(0, top_k, 5):
 
-        recommendations = [
-            ("I", 0),
-            ("II", 1),
-            ("III", 2),
-            ("IV", 3),
-            ("V", 4),
-        ]
-
-        for col, (label, position) in zip(
-            [col1, col2, col3, col4, col5],
-            recommendations
-        ):
-            with col:
-                st.header(label)
-
-                st.image(
-                    img_files_list[indices[position]]
+            row_positions = list(
+                range(
+                    start,
+                    min(start + 5, top_k)
                 )
+            )
 
-                st.caption(
-                    f"Distance: {distances[position]:.4f}"
-                )
+            columns = st.columns(
+                len(row_positions)
+            )
+
+            for col, position in zip(
+                columns,
+                row_positions
+            ):
+                with col:
+
+                    st.image(
+                        img_files_list[
+                            indices[position]
+                        ]
+                    )
+
+                    st.caption(
+                        f"Distance: "
+                        f"{distances[position]:.4f}"
+                    )
 
     else:
-        st.error("Could not save the uploaded image.")
+        st.error(
+            "Could not save the uploaded image."
+        )
