@@ -1,4 +1,3 @@
-import os
 import pickle
 
 import numpy as np
@@ -9,30 +8,51 @@ from sklearn.neighbors import NearestNeighbors
 from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 from tensorflow.keras.layers import GlobalMaxPooling2D
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.utils import load_img, img_to_array
 
 
-# ---------------------------------------------------------
-# Streamlit UI
-# ---------------------------------------------------------
+# =========================================================
+# PAGE CONFIGURATION
+# =========================================================
+
+st.set_page_config(
+    page_title="Fashion Recommendation System",
+    page_icon="👕",
+    layout="wide"
+)
+
+
+# =========================================================
+# TITLE
+# =========================================================
 
 st.title("Fashion Recommendation System")
 
-
-# ---------------------------------------------------------
-# Load saved feature database
-# ---------------------------------------------------------
-
-with open("image_features_embedding.pkl", "rb") as f:
-    features_list = pickle.load(f)
-
-with open("img_files.pkl", "rb") as f:
-    img_files_list = pickle.load(f)
+st.write(
+    "Upload a fashion/product image to find visually similar products."
+)
 
 
-# ---------------------------------------------------------
-# Load and cache ResNet50 model
-# ---------------------------------------------------------
+# =========================================================
+# LOAD FEATURE DATABASE
+# =========================================================
+
+@st.cache_data
+def load_feature_database():
+    with open("image_features_embedding.pkl", "rb") as f:
+        features = pickle.load(f)
+
+    with open("img_files.pkl", "rb") as f:
+        image_files = pickle.load(f)
+
+    return np.asarray(features), image_files
+
+
+features_list, img_files_list = load_feature_database()
+
+
+# =========================================================
+# LOAD AND CACHE RESNET50
+# =========================================================
 
 @st.cache_resource
 def load_model():
@@ -42,20 +62,23 @@ def load_model():
         input_shape=(224, 224, 3)
     )
 
+    # Use ResNet50 only as a frozen feature extractor
     base_model.trainable = False
 
-    return Sequential([
+    model = Sequential([
         base_model,
         GlobalMaxPooling2D()
     ])
+
+    return model
 
 
 model = load_model()
 
 
-# ---------------------------------------------------------
-# Number of recommendations
-# ---------------------------------------------------------
+# =========================================================
+# NUMBER OF RECOMMENDATIONS
+# =========================================================
 
 top_k = st.selectbox(
     "Number of recommendations",
@@ -64,9 +87,9 @@ top_k = st.selectbox(
 )
 
 
-# ---------------------------------------------------------
-# Build nearest-neighbor index
-# ---------------------------------------------------------
+# =========================================================
+# BUILD NEAREST NEIGHBOR INDEX
+# =========================================================
 
 neighbors = NearestNeighbors(
     n_neighbors=top_k + 1,
@@ -77,76 +100,73 @@ neighbors = NearestNeighbors(
 neighbors.fit(features_list)
 
 
-# ---------------------------------------------------------
-# Save uploaded image
-# ---------------------------------------------------------
+# =========================================================
+# FEATURE EXTRACTION
+# =========================================================
 
-def save_file(uploaded_file):
-    try:
-        os.makedirs("uploader", exist_ok=True)
+def extract_img_features(img, model):
+    """
+    Extract a normalized ResNet50 feature vector
+    from a PIL image.
+    """
 
-        file_path = os.path.join(
-            "uploader",
-            uploaded_file.name
-        )
+    # Ensure RGB
+    img = img.convert("RGB")
 
-        with open(file_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-
-        return file_path
-
-    except Exception as exc:
-        st.error(
-            f"Could not save uploaded image: {exc}"
-        )
-        return None
-
-
-# ---------------------------------------------------------
-# Extract features from query image
-# ---------------------------------------------------------
-
-def extract_img_features(img_path, model):
-    img = load_img(
-        img_path,
-        target_size=(224, 224)
+    # ResNet50 input size
+    img = img.resize(
+        (224, 224),
+        Image.Resampling.LANCZOS
     )
 
-    img_array = img_to_array(img)
+    # Convert image to NumPy array
+    img_array = np.asarray(
+        img,
+        dtype=np.float32
+    )
 
-    expand_img = np.expand_dims(
+    # Add batch dimension
+    expanded_img = np.expand_dims(
         img_array,
         axis=0
     )
 
+    # ResNet50 preprocessing
     preprocessed_img = preprocess_input(
-        expand_img
+        expanded_img
     )
 
-    result_to_resnet = model.predict(
+    # Feature extraction
+    result = model.predict(
         preprocessed_img,
         verbose=0
     )
 
-    flatten_result = result_to_resnet.flatten()
+    # Flatten embedding
+    feature_vector = result.flatten()
 
-    feature_norm = norm(flatten_result)
+    # L2 normalization
+    feature_norm = norm(feature_vector)
 
     if feature_norm == 0:
-        return flatten_result
+        return feature_vector
 
-    normalized_result = (
-        flatten_result / feature_norm
+    normalized_vector = (
+        feature_vector / feature_norm
     )
 
-    return normalized_result
+    return normalized_vector
 
 
-# ---------------------------------------------------------
-# Find similar images
-# ---------------------------------------------------------
+# =========================================================
+# RECOMMENDATION
+# =========================================================
 
 def recommend(features):
+    """
+    Find nearest images using Euclidean distance.
+    """
+
     distances, indices = neighbors.kneighbors(
         [features]
     )
@@ -154,94 +174,178 @@ def recommend(features):
     return distances[0], indices[0]
 
 
-# ---------------------------------------------------------
-# Upload image
-# ---------------------------------------------------------
+# =========================================================
+# UPLOAD IMAGE
+# =========================================================
 
 uploaded_file = st.file_uploader(
     "Choose your image",
-    type=["jpg", "jpeg", "png", "webp"]
+    type=[
+        "jpg",
+        "jpeg",
+        "png",
+        "webp"
+    ]
 )
 
 
+# =========================================================
+# PROCESS UPLOADED IMAGE
+# =========================================================
+
 if uploaded_file is not None:
 
-    file_path = save_file(uploaded_file)
+    try:
 
-    if file_path:
+        # -------------------------------------------------
+        # Read image directly into memory
+        # -------------------------------------------------
 
-        # ---------------------------------------------
+        query_image = Image.open(
+            uploaded_file
+        ).convert("RGB")
+
+        # -------------------------------------------------
         # Display uploaded image
-        # ---------------------------------------------
+        # -------------------------------------------------
 
-        show_image = Image.open(uploaded_file)
-
-        resized_image = show_image.resize(
-            (400, 400)
-        )
+        st.subheader("Uploaded Image")
 
         st.image(
-            resized_image,
-            caption="Uploaded Image"
+            query_image,
+            width=400
         )
 
-        # ---------------------------------------------
+        # -------------------------------------------------
         # Extract query features
-        # ---------------------------------------------
+        # -------------------------------------------------
 
         features = extract_img_features(
-            file_path,
+            query_image,
             model
         )
 
-        # ---------------------------------------------
-        # Get recommendations
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # Find nearest images
+        # -------------------------------------------------
 
         distances, indices = recommend(
             features
         )
 
-        # ---------------------------------------------
-        # Display recommendations
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # Remove exact filename match if possible
+        # -------------------------------------------------
 
-        st.subheader(
-            f"Top {top_k} Recommended Products"
+        uploaded_name = (
+            uploaded_file.name
+            .lower()
         )
 
-        # Display results in rows of 5
-        for start in range(0, top_k, 5):
+        valid_results = []
 
-            row_positions = list(
-                range(
-                    start,
-                    min(start + 5, top_k)
-                )
+        for distance, index in zip(
+            distances,
+            indices
+        ):
+
+            image_path = str(
+                img_files_list[index]
             )
+
+            # Windows/Linux path compatibility
+            image_name = image_path.replace(
+                "\\",
+                "/"
+            ).split("/")[-1].lower()
+
+            if image_name == uploaded_name:
+                continue
+
+            valid_results.append(
+                (distance, index)
+            )
+
+            if len(valid_results) == top_k:
+                break
+
+        # -------------------------------------------------
+        # Results title
+        # -------------------------------------------------
+
+        st.subheader(
+            f"Top {len(valid_results)} Recommended Products"
+        )
+
+        # -------------------------------------------------
+        # Display results in rows of 5
+        # -------------------------------------------------
+
+        for start in range(
+            0,
+            len(valid_results),
+            5
+        ):
+
+            row = valid_results[
+                start:start + 5
+            ]
 
             columns = st.columns(
-                len(row_positions)
+                len(row)
             )
 
-            for col, position in zip(
+            for col, (
+                distance,
+                index
+            ) in zip(
                 columns,
-                row_positions
+                row
             ):
+
                 with col:
 
-                    st.image(
-                        img_files_list[
-                            indices[position]
-                        ]
+                    image_path = (
+                        img_files_list[index]
                     )
+
+                    # -----------------------------
+                    # Open original image
+                    # -----------------------------
+
+                    result_image = Image.open(
+                        image_path
+                    ).convert("RGB")
+
+                    # -----------------------------
+                    # Preserve aspect ratio
+                    # -----------------------------
+
+                    result_image.thumbnail(
+                        (180, 220),
+                        Image.Resampling.LANCZOS
+                    )
+
+                    # -----------------------------
+                    # Display image without
+                    # stretching
+                    # -----------------------------
+
+                    st.image(
+                        result_image,
+                        width=180
+                    )
+
+                    # -----------------------------
+                    # Distance
+                    # -----------------------------
 
                     st.caption(
-                        f"Distance: "
-                        f"{distances[position]:.4f}"
+                        f"Distance: {distance:.4f}"
                     )
 
-    else:
+    except Exception as exc:
+
         st.error(
-            "Could not save the uploaded image."
+            f"Could not process the uploaded image: {exc}"
         )
