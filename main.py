@@ -15,9 +15,23 @@ import os
 features_list = pickle.load(open("image_features_embedding.pkl", "rb"))
 img_files_list = pickle.load(open("img_files.pkl", "rb"))
 
-model = ResNet50(weights="imagenet", include_top=False, input_shape=(224, 224, 3))
-model.trainable = False
-model = Sequential([model, GlobalMaxPooling2D()])
+@st.cache_resource
+def load_model():
+    base_model = ResNet50(
+        weights="imagenet",
+        include_top=False,
+        input_shape=(224, 224, 3)
+    )
+
+    base_model.trainable = False
+
+    return Sequential([
+        base_model,
+        GlobalMaxPooling2D()
+    ])
+
+
+model = load_model()
 
 st.title('Fashion recommendation system')
 
