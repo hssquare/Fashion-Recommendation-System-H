@@ -10,9 +10,9 @@ The solution allows users to upload an image of any fashion product and instantl
 ---
 
 ## ⚙️ Proposed Methodology
-1. **Feature Extraction:** Pre-trained CNN models (**ResNet50 with transfer learning**) are used to extract high-dimensional feature embeddings from product images.  
+1. **Feature Extraction:** Pre-trained CNN models (**Pretrained ResNet50 used as a frozen feature extractor learninG H**) are used to extract high-dimensional feature embeddings from product images.  
 2. **Database Creation:** Each item in the catalog is processed to store its feature vector in the database.  
-3. **Similarity Search:** When a user uploads an image, its feature vector is computed and compared using **Cosine Similarity** against the database.  
+3. **Similarity Search:** When a user uploads an image, its feature vector is computed and compared against the stored feature embeddings using Euclidean distance with scikit-learn's Nearest Neighbors.
 4. **Top Matches:** The system returns the **top 5 most visually similar images**.  
 
 ---
@@ -23,7 +23,11 @@ The project uses the **[Fashion Product Images Dataset (Kaggle)](https://www.kag
 ---
 
 ## 📊 Results
-- Achieved **high retrieval accuracy** with visually coherent matches.  
+- Achieved **high retrieval accuracy** with visually coherent matches.
+- Generated visual embeddings for 44,441 fashion product images.
+- Used a pretrained ResNet50 model as a frozen feature extractor.
+- Used scikit-learn NearestNeighbors for similarity retrieval.
+- Returns the top 5 visually similar products for an uploaded query image.  
 - Leveraged **transfer learning** and `scikit-learn`'s **Nearest Neighbors** for efficient search.  
 - Can retrieve and display results with **low latency**.  
 
