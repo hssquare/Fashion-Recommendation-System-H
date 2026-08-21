@@ -1,5 +1,6 @@
 import json
 import pickle
+import time
 from pathlib import Path
 
 import numpy as np
@@ -680,6 +681,31 @@ st.markdown(
 
 
     /* =====================================================
+       STATUS
+       ===================================================== */
+
+    .fv-info {
+        margin-top: 12px;
+
+        padding: 12px 14px;
+
+        border-radius: 14px;
+
+        border:
+            1px solid rgba(255,255,255,0.07);
+
+        background:
+            rgba(255,255,255,0.025);
+
+        color: #888b9c;
+
+        font-size: 11px;
+
+        line-height: 1.6;
+    }
+
+
+    /* =====================================================
        BUTTON
        ===================================================== */
 
@@ -899,7 +925,7 @@ catalog_size = len(
 
 
 # =========================================================
-# LOAD HIGH-RESOLUTION PRODUCT MAPPING
+# LOAD HIGH-RES MAPPING
 # =========================================================
 
 @st.cache_data
@@ -921,7 +947,9 @@ def load_hf_mapping():
             encoding="utf-8",
         ) as file:
 
-            return json.load(file)
+            mapping = json.load(file)
+
+        return mapping
 
     except Exception:
 
@@ -1026,7 +1054,7 @@ render_html(
 
     &nbsp;·&nbsp;
 
-    Catalog size:
+    Retrieval catalog:
 
     <span class="fv-mode-value">
         {catalog_size:,}
@@ -1088,13 +1116,11 @@ uploaded_file = st.file_uploader(
 # BUILD NEAREST NEIGHBOR INDEX
 # =========================================================
 
-search_count = min(
-    top_k + 1,
-    catalog_size,
-)
-
 neighbors = NearestNeighbors(
-    n_neighbors=search_count,
+    n_neighbors=min(
+        50,
+        catalog_size,
+    ),
     algorithm="brute",
     metric="euclidean",
 )
@@ -1156,21 +1182,6 @@ def extract_img_features(
 
 
 # =========================================================
-# RETRIEVAL
-# =========================================================
-
-def retrieve(features):
-
-    distances, indices = (
-        neighbors.kneighbors(
-            [features]
-        )
-    )
-
-    return distances[0], indices[0]
-
-
-# =========================================================
 # PRODUCT ID
 # =========================================================
 
@@ -1182,7 +1193,7 @@ def extract_product_id(
 
         return int(
             Path(
-                image_path
+                str(image_path)
             ).stem
         )
 
@@ -1192,6 +1203,117 @@ def extract_product_id(
     ):
 
         return None
+
+
+# =========================================================
+# HTTP JSON REQUEST WITH RETRIES
+# =========================================================
+
+def request_rows(
+    row_index,
+    retries=3,
+):
+
+    params = {
+        "dataset": HF_DATASET,
+        "config": HF_CONFIG,
+        "split": HF_SPLIT,
+        "offset": int(row_index),
+        "length": 1,
+    }
+
+
+    for attempt in range(
+        retries + 1
+    ):
+
+        try:
+
+            response = requests.get(
+                HF_ROWS_API,
+                params=params,
+                timeout=45,
+            )
+
+
+            if response.status_code == 429:
+
+                retry_after = response.headers.get(
+                    "Retry-After"
+                )
+
+                if retry_after:
+
+                    try:
+
+                        delay = float(
+                            retry_after
+                        )
+
+                    except ValueError:
+
+                        delay = 2.0
+
+                else:
+
+                    delay = (
+                        2.0
+                        * (2 ** attempt)
+                    )
+
+                if attempt < retries:
+
+                    time.sleep(
+                        min(
+                            delay,
+                            12.0,
+                        )
+                    )
+
+                    continue
+
+                return None
+
+
+            if (
+                response.status_code >= 500
+                and attempt < retries
+            ):
+
+                time.sleep(
+                    min(
+                        2.0
+                        * (2 ** attempt),
+                        10.0,
+                    )
+                )
+
+                continue
+
+
+            response.raise_for_status()
+
+            return response.json()
+
+
+        except requests.RequestException:
+
+            if attempt < retries:
+
+                time.sleep(
+                    min(
+                        2.0
+                        * (2 ** attempt),
+                        10.0,
+                    )
+                )
+
+                continue
+
+            return None
+
+
+    return None
 
 
 # =========================================================
@@ -1208,7 +1330,11 @@ def fetch_high_res_image(
 
     if product_id is None:
 
-        return None, None, None
+        return (
+            None,
+            None,
+            None,
+        )
 
 
     product_info = hf_mapping.get(
@@ -1218,7 +1344,11 @@ def fetch_high_res_image(
 
     if product_info is None:
 
-        return None, None, None
+        return (
+            None,
+            None,
+            None,
+        )
 
 
     row_index = product_info.get(
@@ -1228,117 +1358,127 @@ def fetch_high_res_image(
 
     if row_index is None:
 
-        return None, None, None
+        return (
+            None,
+            None,
+            None,
+        )
 
 
-    params = {
+    data = request_rows(
+        row_index
+    )
 
-        "dataset":
-            HF_DATASET,
 
-        "config":
-            HF_CONFIG,
+    if not data:
 
-        "split":
-            HF_SPLIT,
+        return (
+            None,
+            None,
+            None,
+        )
 
-        "offset":
-            row_index,
 
-        "length":
-            1,
-    }
+    rows = data.get(
+        "rows",
+        [],
+    )
+
+
+    if not rows:
+
+        return (
+            None,
+            None,
+            None,
+        )
+
+
+    row = rows[0].get(
+        "row",
+        {},
+    )
+
+
+    returned_product_id = row.get(
+        "id"
+    )
+
+
+    if returned_product_id is not None:
+
+        try:
+
+            if int(returned_product_id) != int(
+                product_id
+            ):
+
+                return (
+                    None,
+                    None,
+                    None,
+                )
+
+        except (
+            ValueError,
+            TypeError,
+        ):
+
+            return (
+                None,
+                None,
+                None,
+            )
+
+
+    image_data = row.get(
+        "image"
+    )
+
+
+    if not isinstance(
+        image_data,
+        dict,
+    ):
+
+        return (
+            None,
+            None,
+            None,
+        )
+
+
+    image_url = image_data.get(
+        "src"
+    )
+
+
+    if not image_url:
+
+        return (
+            None,
+            None,
+            None,
+        )
+
+
+    width = image_data.get(
+        "width"
+    )
+
+    height = image_data.get(
+        "height"
+    )
 
 
     try:
 
-        response = requests.get(
-            HF_ROWS_API,
-            params=params,
-            timeout=30,
-        )
-
-        response.raise_for_status()
-
-
-        data = response.json()
-
-
-        rows = data.get(
-            "rows",
-            [],
-        )
-
-
-        if not rows:
-
-            return None, None, None
-
-
-        row = rows[0].get(
-            "row",
-            {},
-        )
-
-
-        # Safety check:
-        # Make sure the returned HF row
-        # actually belongs to this product.
-
-        returned_product_id = row.get(
-            "id"
-        )
-
-
-        if (
-            returned_product_id is not None
-            and int(returned_product_id)
-            != int(product_id)
-        ):
-
-            return None, None, None
-
-
-        image_data = row.get(
-            "image"
-        )
-
-
-        if not isinstance(
-            image_data,
-            dict,
-        ):
-
-            return None, None, None
-
-
-        image_url = image_data.get(
-            "src"
-        )
-
-
-        if not image_url:
-
-            return None, None, None
-
-
-        width = image_data.get(
-            "width"
-        )
-
-        height = image_data.get(
-            "height"
-        )
-
-
         image_response = requests.get(
             image_url,
-            timeout=30,
+            timeout=45,
         )
 
-
         image_response.raise_for_status()
-
 
         return (
             image_response.content,
@@ -1346,21 +1486,20 @@ def fetch_high_res_image(
             height,
         )
 
+    except requests.RequestException:
 
-    except (
-        requests.RequestException,
-        ValueError,
-        TypeError,
-    ):
-
-        return None, None, None
+        return (
+            None,
+            None,
+            None,
+        )
 
 
 # =========================================================
-# RECOMMENDATION IMAGE
+# RESOLVE HIGH-RES RECOMMENDATION
 # =========================================================
 
-def get_recommendation_image(
+def resolve_recommendation(
     image_path,
 ):
 
@@ -1369,35 +1508,37 @@ def get_recommendation_image(
     )
 
 
-    high_res_bytes, width, height = (
-        fetch_high_res_image(
-            product_id
-        )
+    (
+        image_bytes,
+        width,
+        height,
+    ) = fetch_high_res_image(
+        product_id
     )
 
 
-    if high_res_bytes is not None:
+    if image_bytes is None:
 
-        return (
-            high_res_bytes,
-            True,
-            width,
-            height,
-            product_id,
-        )
+        return {
+            "available": False,
+            "product_id": product_id,
+            "image": None,
+            "width": None,
+            "height": None,
+        }
 
 
-    return (
-        image_path,
-        False,
-        None,
-        None,
-        product_id,
-    )
+    return {
+        "available": True,
+        "product_id": product_id,
+        "image": image_bytes,
+        "width": width,
+        "height": height,
+    }
 
 
 # =========================================================
-# PROCESS QUERY
+# PROCESS UPLOADED IMAGE
 # =========================================================
 
 if uploaded_file is not None:
@@ -1405,7 +1546,7 @@ if uploaded_file is not None:
     try:
 
         # =================================================
-        # LOAD QUERY IMAGE
+        # QUERY IMAGE
         # =================================================
 
         query_image = Image.open(
@@ -1414,7 +1555,7 @@ if uploaded_file is not None:
 
 
         # =================================================
-        # AI ANALYSIS HEADER
+        # ANALYSIS HEADER
         # =================================================
 
         st.markdown(
@@ -1448,7 +1589,7 @@ if uploaded_file is not None:
 
 
         # =================================================
-        # PROCESSING STATUS
+        # STATUS
         # =================================================
 
         status_box = st.empty()
@@ -1456,14 +1597,7 @@ if uploaded_file is not None:
 
         status_box.markdown(
             """
-            <div style="
-                padding:18px;
-                border-radius:18px;
-                border:1px solid rgba(255,255,255,0.08);
-                background:rgba(255,255,255,0.025);
-                color:#aeb0bf;
-                font-size:13px;
-            ">
+            <div class="fv-info">
                 <b style="color:white;">01</b>
                 &nbsp;&nbsp;
                 Reading image...
@@ -1485,22 +1619,14 @@ if uploaded_file is not None:
 
         status_box.markdown(
             f"""
-            <div style="
-                padding:18px;
-                border-radius:18px;
-                border:1px solid rgba(0,255,180,0.14);
-                background:rgba(0,255,180,0.035);
-                color:#6fffd0;
-                font-size:13px;
-            ">
-
-                <b>01 ✓</b>
+            <div class="fv-info">
+                <b style="color:#6fffd0;">01 ✓</b>
                 &nbsp;&nbsp;
                 Image loaded
 
                 <br><br>
 
-                <b>02 ✓</b>
+                <b style="color:#6fffd0;">02 ✓</b>
                 &nbsp;&nbsp;
                 ResNet50 embedding generated
 
@@ -1509,7 +1635,6 @@ if uploaded_file is not None:
                 <b style="color:white;">03</b>
                 &nbsp;&nbsp;
                 Searching {catalog_size:,} products...
-
             </div>
             """,
             unsafe_allow_html=True,
@@ -1517,51 +1642,118 @@ if uploaded_file is not None:
 
 
         # =================================================
-        # RETRIEVAL
+        # RETRIEVAL CANDIDATES
         # =================================================
 
-        distances, indices = retrieve(
-            features
+        candidate_count = min(
+            max(
+                top_k + 15,
+                top_k * 4,
+            ),
+            catalog_size,
+        )
+
+
+        distances, indices = (
+            neighbors.kneighbors(
+                [features],
+                n_neighbors=candidate_count,
+            )
         )
 
 
         status_box.markdown(
             f"""
-            <div style="
-                padding:18px;
-                border-radius:18px;
-                border:1px solid rgba(0,255,180,0.14);
-                background:rgba(0,255,180,0.035);
-                color:#6fffd0;
-                font-size:13px;
-            ">
-
-                <b>01 ✓</b>
+            <div class="fv-info">
+                <b style="color:#6fffd0;">01 ✓</b>
                 &nbsp;&nbsp;
                 Image loaded
 
                 <br><br>
 
-                <b>02 ✓</b>
+                <b style="color:#6fffd0;">02 ✓</b>
                 &nbsp;&nbsp;
                 ResNet50 embedding generated
 
                 <br><br>
 
-                <b>03 ✓</b>
+                <b style="color:#6fffd0;">03 ✓</b>
                 &nbsp;&nbsp;
                 {catalog_size:,} products searched
 
                 <br><br>
 
-                <b>04 ✓</b>
+                <b style="color:white;">04</b>
                 &nbsp;&nbsp;
-                Top-{top_k} matches ranked
-
+                Resolving high-resolution product images...
             </div>
             """,
             unsafe_allow_html=True,
         )
+
+
+        # =================================================
+        # RESOLVE RESULTS
+        # =================================================
+
+        resolved_results = []
+
+        failed_products = 0
+
+
+        for distance, index in zip(
+            distances[0],
+            indices[0],
+        ):
+
+            image_path = (
+                img_files_list[
+                    int(index)
+                ]
+            )
+
+
+            resolved = resolve_recommendation(
+                image_path
+            )
+
+
+            if not resolved["available"]:
+
+                failed_products += 1
+
+                continue
+
+
+            resolved_results.append(
+                {
+                    "distance": float(
+                        distance
+                    ),
+                    "index": int(
+                        index
+                    ),
+                    "product_id": resolved[
+                        "product_id"
+                    ],
+                    "image": resolved[
+                        "image"
+                    ],
+                    "width": resolved[
+                        "width"
+                    ],
+                    "height": resolved[
+                        "height"
+                    ],
+                }
+            )
+
+
+            if len(
+                resolved_results
+            ) >= top_k:
+
+                break
 
 
         status_box.empty()
@@ -1691,9 +1883,9 @@ if uploaded_file is not None:
 </div>
 
 <div class="fv-section-description">
-    Ranking is generated by the original 44,441-image
-    retrieval system. Display images are upgraded to
-    high-resolution when a matching product is available.
+    Results are ranked by the original 44,441-image
+    retrieval system and displayed using the
+    high-resolution catalog.
 </div>
 """
         )
@@ -1709,61 +1901,62 @@ if uploaded_file is not None:
         # RESULTS
         # =================================================
 
-        results = list(
-            zip(
-                distances,
-                indices,
-            )
-        )
+        if not resolved_results:
 
-
-        for start in range(
-            0,
-            min(
-                top_k,
-                len(results),
-            ),
-            5,
-        ):
-
-            row = results[
-                start:start + 5
-            ]
-
-
-            columns = st.columns(
-                len(row),
-                gap="medium",
+            st.error(
+                "The retrieval engine found candidates, "
+                "but no high-resolution catalog images "
+                "could be loaded right now."
             )
 
+            if failed_products > 0:
 
-            for position, (
-                column,
-                result,
-            ) in enumerate(
-                zip(
-                    columns,
-                    row,
+                st.caption(
+                    f"{failed_products} candidate products "
+                    "could not be resolved from the "
+                    "high-resolution catalog."
                 )
+
+        else:
+
+            for start in range(
+                0,
+                len(resolved_results),
+                5,
             ):
 
-                distance, index = result
+                row = resolved_results[
+                    start:start + 5
+                ]
 
-                rank = (
-                    start
-                    + position
-                    + 1
+
+                columns = st.columns(
+                    len(row),
+                    gap="medium",
                 )
 
 
-                with column:
+                for position, (
+                    column,
+                    result,
+                ) in enumerate(
+                    zip(
+                        columns,
+                        row,
+                    )
+                ):
 
-                    # -----------------------------------------
-                    # Card header
-                    # -----------------------------------------
+                    rank = (
+                        start
+                        + position
+                        + 1
+                    )
 
-                    render_html(
-                        f"""
+
+                    with column:
+
+                        render_html(
+                            f"""
 <div class="fv-result">
 
     <span class="fv-rank">
@@ -1772,105 +1965,51 @@ if uploaded_file is not None:
 
 </div>
 """
-                    )
+                        )
 
 
-                    # -----------------------------------------
-                    # Original catalog path
-                    # -----------------------------------------
-
-                    image_path = (
-                        img_files_list[index]
-                    )
+                        st.image(
+                            result["image"],
+                            width=220,
+                        )
 
 
-                    # -----------------------------------------
-                    # High-resolution display
-                    # -----------------------------------------
+                        distance_text = (
+                            result["distance"]
+                        )
 
-                    (
-                        recommendation_image,
-                        is_high_res,
-                        width,
-                        height,
-                        product_id,
-                    ) = get_recommendation_image(
-                        image_path
-                    )
-
-
-                    # -----------------------------------------
-                    # Display image
-                    # -----------------------------------------
-
-                    st.image(
-                        recommendation_image,
-                        width=220,
-                    )
-
-
-                    # -----------------------------------------
-                    # Distance
-                    # -----------------------------------------
-
-                    render_html(
-                        f"""
-<div class="fv-distance">
-    DISTANCE · {distance:.4f}
-</div>
-"""
-                    )
-
-
-                    # -----------------------------------------
-                    # Resolution label
-                    # -----------------------------------------
-
-                    if is_high_res:
-
-                        if (
-                            width
-                            and height
-                        ):
-
-                            render_html(
-                                f"""
-<div class="fv-resolution">
-    HIGH RES · {width} × {height}
-</div>
-"""
-                            )
-
-                        else:
-
-                            render_html(
-                                """
-<div class="fv-resolution">
-    HIGH-RES IMAGE
-</div>
-"""
-                            )
-
-                    else:
 
                         render_html(
-                            """
-<div style="
-    margin-top:7px;
-    color:#7b7d89;
-    font-size:9px;
-    font-weight:800;
-    letter-spacing:0.08em;
-    text-transform:uppercase;
-">
-    LOCAL FALLBACK
+                            f"""
+<div class="fv-distance">
+    DISTANCE · {distance_text:.4f}
+</div>
+
+<div class="fv-resolution">
+    HIGH RES ·
+    {result["width"]} × {result["height"]}
 </div>
 """
                         )
 
 
+            if failed_products > 0:
+
+                render_html(
+                    f"""
+<div class="fv-info">
+    Display note:
+    {failed_products} nearby catalog candidates
+    were skipped because their high-resolution image
+    was unavailable. The next available high-resolution
+    matches were displayed instead.
+</div>
+"""
+                )
+
+
         # =================================================
-        # NEW SEARCH
+        # START NEW SEARCH
         # =================================================
 
         st.markdown(
