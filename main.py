@@ -894,25 +894,23 @@ def retrieve(features):
 if uploaded_file is not None:
 
     try:
-
         query_image = Image.open(
             uploaded_file
         ).convert("RGB")
 
-
         # =================================================
-        # ANALYSIS
+        # AI PROCESSING STATE
         # =================================================
 
         st.markdown(
-            "<div style='height:90px'></div>",
+            "<div style='height:70px'></div>",
             unsafe_allow_html=True,
         )
 
         render_html(
             """
 <div class="fv-section-eyebrow">
-    02 · ANALYSIS
+    02 · AI ANALYSIS
 </div>
 
 <div class="fv-section-title">
@@ -920,8 +918,8 @@ if uploaded_file is not None:
 </div>
 
 <div class="fv-section-description">
-    Your image is converted into a deep visual embedding
-    and compared with 44,441 catalog images.
+    Your image is being transformed into a visual embedding
+    and searched against the fashion catalog.
 </div>
 """
         )
@@ -931,12 +929,144 @@ if uploaded_file is not None:
             unsafe_allow_html=True,
         )
 
+        progress_box = st.empty()
+
+        # -------------------------------------------------
+        # STEP 01
+        # -------------------------------------------------
+
+        progress_box.markdown(
+            """
+            <div style="
+                padding:20px;
+                border-radius:18px;
+                border:1px solid rgba(255,255,255,0.08);
+                background:rgba(255,255,255,0.025);
+                color:#aeb0bf;
+                font-size:13px;
+            ">
+                <b style="color:white;">01</b>
+                &nbsp;&nbsp; Reading image...
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        import time
+        time.sleep(0.25)
+
+        # -------------------------------------------------
+        # STEP 02
+        # -------------------------------------------------
+
+        progress_box.markdown(
+            """
+            <div style="
+                padding:20px;
+                border-radius:18px;
+                border:1px solid rgba(0,255,180,0.14);
+                background:rgba(0,255,180,0.035);
+                color:#6fffd0;
+                font-size:13px;
+            ">
+                <b>01 ✓</b>
+                &nbsp;&nbsp; Image loaded
+                <br><br>
+                <b style="color:white;">02</b>
+                &nbsp;&nbsp; Extracting visual features...
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        features = extract_img_features(
+            query_image,
+            model,
+        )
+
+        time.sleep(0.25)
+
+        # -------------------------------------------------
+        # STEP 03
+        # -------------------------------------------------
+
+        progress_box.markdown(
+            """
+            <div style="
+                padding:20px;
+                border-radius:18px;
+                border:1px solid rgba(0,255,180,0.14);
+                background:rgba(0,255,180,0.035);
+                color:#6fffd0;
+                font-size:13px;
+            ">
+                <b>01 ✓</b>
+                &nbsp;&nbsp; Image loaded
+                <br><br>
+                <b>02 ✓</b>
+                &nbsp;&nbsp; ResNet50 embedding generated
+                <br><br>
+                <b style="color:white;">03</b>
+                &nbsp;&nbsp; Searching 44,441 products...
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        distances, indices = retrieve(
+            features
+        )
+
+        time.sleep(0.25)
+
+        # -------------------------------------------------
+        # STEP 04
+        # -------------------------------------------------
+
+        progress_box.markdown(
+            """
+            <div style="
+                padding:20px;
+                border-radius:18px;
+                border:1px solid rgba(0,255,180,0.14);
+                background:rgba(0,255,180,0.035);
+                color:#6fffd0;
+                font-size:13px;
+            ">
+                <b>01 ✓</b>
+                &nbsp;&nbsp; Image loaded
+                <br><br>
+                <b>02 ✓</b>
+                &nbsp;&nbsp; ResNet50 embedding generated
+                <br><br>
+                <b>03 ✓</b>
+                &nbsp;&nbsp; 44,441 products searched
+                <br><br>
+                <b>04 ✓</b>
+                &nbsp;&nbsp; Matches ranked successfully
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        time.sleep(0.35)
+
+        # Remove processing panel
+        progress_box.empty()
+
+        # =================================================
+        # QUERY + ANALYSIS
+        # =================================================
+
+        st.markdown(
+            "<div style='height:45px'></div>",
+            unsafe_allow_html=True,
+        )
 
         image_col, analysis_col = st.columns(
             [1.15, 1],
             gap="large",
         )
-
 
         with image_col:
 
@@ -944,7 +1074,6 @@ if uploaded_file is not None:
                 query_image,
                 width=500,
             )
-
 
         with analysis_col:
 
@@ -1009,32 +1138,12 @@ if uploaded_file is not None:
 """
             )
 
-
-        # =================================================
-        # EMBEDDING
-        # =================================================
-
-        features = extract_img_features(
-            query_image,
-            model,
-        )
-
-
-        # =================================================
-        # RETRIEVE
-        # =================================================
-
-        distances, indices = retrieve(
-            features
-        )
-
-
         # =================================================
         # RESULTS
         # =================================================
 
         st.markdown(
-            "<div style='height:100px'></div>",
+            "<div style='height:90px'></div>",
             unsafe_allow_html=True,
         )
 
@@ -1049,8 +1158,7 @@ if uploaded_file is not None:
 </div>
 
 <div class="fv-section-description">
-    Lower distance means the retrieved embedding is
-    visually closer to your query.
+    Ranked from closest to furthest visual embedding match.
 </div>
 """
         )
@@ -1060,14 +1168,12 @@ if uploaded_file is not None:
             unsafe_allow_html=True,
         )
 
-
         results = list(
             zip(
                 distances,
                 indices,
             )
         )
-
 
         for start in range(
             0,
@@ -1087,7 +1193,6 @@ if uploaded_file is not None:
                 gap="medium",
             )
 
-
             for position, (
                 column,
                 result,
@@ -1105,7 +1210,6 @@ if uploaded_file is not None:
                     + position
                     + 1
                 )
-
 
                 with column:
 
@@ -1132,13 +1236,33 @@ if uploaded_file is not None:
 """
                     )
 
+        # =================================================
+        # NEW SEARCH BUTTON
+        # =================================================
+
+        st.markdown(
+            "<div style='height:60px'></div>",
+            unsafe_allow_html=True,
+        )
+
+        center_left, center, center_right = st.columns(
+            [1, 1, 1]
+        )
+
+        with center:
+
+            if st.button(
+                "↻  START NEW SEARCH",
+                use_container_width=True,
+            ):
+                st.rerun()
 
         # =================================================
         # FOOTER
         # =================================================
 
         st.markdown(
-            "<div style='height:80px'></div>",
+            "<div style='height:70px'></div>",
             unsafe_allow_html=True,
         )
 
@@ -1155,7 +1279,6 @@ if uploaded_file is not None:
 </div>
 """
         )
-
 
     except Exception as exc:
 

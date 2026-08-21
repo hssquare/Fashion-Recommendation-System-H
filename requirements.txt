@@ -1,7 +1,7 @@
 numpy
-tensorflow
+tensorflow==2.21.0
 tqdm
-streamlit
+streamlit==1.61.1
 pandas
 Pillow
 scikit-learn
