@@ -1,6 +1,9 @@
+import json
 import pickle
+from pathlib import Path
 
 import numpy as np
+import requests
 import streamlit as st
 from PIL import Image
 from numpy.linalg import norm
@@ -27,25 +30,28 @@ st.set_page_config(
 
 
 # =========================================================
-# CUSTOM HTML RENDERER
-# =========================================================
-
-def render_html(html_content):
-    """
-    Render custom HTML using Streamlit's HTML renderer.
-    """
-    st.html(html_content)
-
-
-# =========================================================
-# FULL CATALOG CONFIGURATION
+# CONFIGURATION
 # =========================================================
 
 FEATURES_FILE = "image_features_embedding.pkl"
 IMAGE_FILES_FILE = "img_files.pkl"
+HF_MAPPING_FILE = "huggingface_product_mapping.json"
+
+HF_DATASET = "PestoRosso/lamoda-fashion-product-images"
+HF_CONFIG = "default"
+HF_SPLIT = "train"
+HF_ROWS_API = "https://datasets-server.huggingface.co/rows"
 
 APP_MODE_LABEL = "FULL"
-APP_MODE_DESCRIPTION = "44,441-image local catalog"
+APP_MODE_DESCRIPTION = "44,441-image retrieval catalog"
+
+
+# =========================================================
+# HTML HELPER
+# =========================================================
+
+def render_html(html_content):
+    st.html(html_content)
 
 
 # =========================================================
@@ -218,8 +224,6 @@ st.markdown(
        ===================================================== */
 
     .fv-hero {
-        position: relative;
-
         padding: 10px 0 90px;
     }
 
@@ -247,8 +251,6 @@ st.markdown(
         margin-top: 25px;
 
         max-width: 1000px;
-
-        color: white;
 
         font-size: clamp(62px, 8vw, 126px);
 
@@ -366,7 +368,7 @@ st.markdown(
         text-align: center;
 
         border:
-            1px dashed rgba(126, 88, 255, 0.62);
+            1px dashed rgba(126,88,255,0.62);
 
         border-radius: 30px;
 
@@ -450,7 +452,7 @@ st.markdown(
 
 
     /* =====================================================
-       STREAMLIT FILE UPLOADER
+       FILE UPLOADER
        ===================================================== */
 
     [data-testid="stFileUploader"] {
@@ -568,7 +570,7 @@ st.markdown(
 
 
     /* =====================================================
-       QUERY IMAGE
+       IMAGES
        ===================================================== */
 
     [data-testid="stImage"] img {
@@ -576,6 +578,8 @@ st.markdown(
 
         box-shadow:
             0 25px 80px rgba(0,0,0,0.35);
+
+        object-fit: contain;
     }
 
 
@@ -658,29 +662,18 @@ st.markdown(
         letter-spacing: 0.04em;
     }
 
+    .fv-resolution {
+        display: inline-block;
 
-    /* =====================================================
-       FOOTER
-       ===================================================== */
+        margin-top: 7px;
 
-    .fv-footer {
-        display: flex;
-        justify-content: space-between;
+        color: #6fffd0;
 
-        margin-top: 110px;
-
-        padding-top: 26px;
-
-        border-top:
-            1px solid rgba(255,255,255,0.06);
-
-        color: #646776;
-
-        font-size: 10px;
+        font-size: 9px;
 
         font-weight: 800;
 
-        letter-spacing: 0.10em;
+        letter-spacing: 0.08em;
 
         text-transform: uppercase;
     }
@@ -727,6 +720,33 @@ st.markdown(
                 rgba(124,60,255,0.35),
                 rgba(0,212,255,0.15)
             ) !important;
+    }
+
+
+    /* =====================================================
+       FOOTER
+       ===================================================== */
+
+    .fv-footer {
+        display: flex;
+        justify-content: space-between;
+
+        margin-top: 110px;
+
+        padding-top: 26px;
+
+        border-top:
+            1px solid rgba(255,255,255,0.06);
+
+        color: #646776;
+
+        font-size: 10px;
+
+        font-weight: 800;
+
+        letter-spacing: 0.10em;
+
+        text-transform: uppercase;
     }
 
 
@@ -781,8 +801,11 @@ render_html(
     </div>
 
     <div class="fv-online">
+
         <span class="fv-online-dot"></span>
+
         AI Online
+
     </div>
 
 </div>
@@ -820,7 +843,7 @@ render_html(
 
 
 # =========================================================
-# LOAD FULL FEATURE DATABASE
+# LOAD ORIGINAL FEATURE DATABASE
 # =========================================================
 
 @st.cache_data
@@ -846,6 +869,7 @@ def load_feature_database():
     )
 
     if len(features) != len(image_files):
+
         raise ValueError(
             "The number of embeddings does not match "
             "the number of image paths."
@@ -872,6 +896,39 @@ except Exception as exc:
 catalog_size = len(
     features_list
 )
+
+
+# =========================================================
+# LOAD HIGH-RESOLUTION PRODUCT MAPPING
+# =========================================================
+
+@st.cache_data
+def load_hf_mapping():
+
+    mapping_path = Path(
+        HF_MAPPING_FILE
+    )
+
+    if not mapping_path.exists():
+
+        return {}
+
+    try:
+
+        with open(
+            mapping_path,
+            "r",
+            encoding="utf-8",
+        ) as file:
+
+            return json.load(file)
+
+    except Exception:
+
+        return {}
+
+
+hf_mapping = load_hf_mapping()
 
 
 # =========================================================
@@ -950,7 +1007,7 @@ with control_col:
 
 
 # =========================================================
-# FULL MODE CARD
+# MODE CARD
 # =========================================================
 
 render_html(
@@ -973,6 +1030,14 @@ render_html(
 
     <span class="fv-mode-value">
         {catalog_size:,}
+    </span>
+
+    &nbsp;·&nbsp;
+
+    High-res mappings:
+
+    <span class="fv-mode-value">
+        {len(hf_mapping):,}
     </span>
 
 </div>
@@ -1081,6 +1146,7 @@ def extract_img_features(
     )
 
     if feature_norm == 0:
+
         return feature_vector
 
     return (
@@ -1105,7 +1171,233 @@ def retrieve(features):
 
 
 # =========================================================
-# PROCESS UPLOADED IMAGE
+# PRODUCT ID
+# =========================================================
+
+def extract_product_id(
+    image_path,
+):
+
+    try:
+
+        return int(
+            Path(
+                image_path
+            ).stem
+        )
+
+    except (
+        ValueError,
+        TypeError,
+    ):
+
+        return None
+
+
+# =========================================================
+# FETCH HIGH-RESOLUTION IMAGE
+# =========================================================
+
+@st.cache_data(
+    ttl=3600,
+    show_spinner=False,
+)
+def fetch_high_res_image(
+    product_id,
+):
+
+    if product_id is None:
+
+        return None, None, None
+
+
+    product_info = hf_mapping.get(
+        str(product_id)
+    )
+
+
+    if product_info is None:
+
+        return None, None, None
+
+
+    row_index = product_info.get(
+        "hf_row_index"
+    )
+
+
+    if row_index is None:
+
+        return None, None, None
+
+
+    params = {
+
+        "dataset":
+            HF_DATASET,
+
+        "config":
+            HF_CONFIG,
+
+        "split":
+            HF_SPLIT,
+
+        "offset":
+            row_index,
+
+        "length":
+            1,
+    }
+
+
+    try:
+
+        response = requests.get(
+            HF_ROWS_API,
+            params=params,
+            timeout=30,
+        )
+
+        response.raise_for_status()
+
+
+        data = response.json()
+
+
+        rows = data.get(
+            "rows",
+            [],
+        )
+
+
+        if not rows:
+
+            return None, None, None
+
+
+        row = rows[0].get(
+            "row",
+            {},
+        )
+
+
+        # Safety check:
+        # Make sure the returned HF row
+        # actually belongs to this product.
+
+        returned_product_id = row.get(
+            "id"
+        )
+
+
+        if (
+            returned_product_id is not None
+            and int(returned_product_id)
+            != int(product_id)
+        ):
+
+            return None, None, None
+
+
+        image_data = row.get(
+            "image"
+        )
+
+
+        if not isinstance(
+            image_data,
+            dict,
+        ):
+
+            return None, None, None
+
+
+        image_url = image_data.get(
+            "src"
+        )
+
+
+        if not image_url:
+
+            return None, None, None
+
+
+        width = image_data.get(
+            "width"
+        )
+
+        height = image_data.get(
+            "height"
+        )
+
+
+        image_response = requests.get(
+            image_url,
+            timeout=30,
+        )
+
+
+        image_response.raise_for_status()
+
+
+        return (
+            image_response.content,
+            width,
+            height,
+        )
+
+
+    except (
+        requests.RequestException,
+        ValueError,
+        TypeError,
+    ):
+
+        return None, None, None
+
+
+# =========================================================
+# RECOMMENDATION IMAGE
+# =========================================================
+
+def get_recommendation_image(
+    image_path,
+):
+
+    product_id = extract_product_id(
+        image_path
+    )
+
+
+    high_res_bytes, width, height = (
+        fetch_high_res_image(
+            product_id
+        )
+    )
+
+
+    if high_res_bytes is not None:
+
+        return (
+            high_res_bytes,
+            True,
+            width,
+            height,
+            product_id,
+        )
+
+
+    return (
+        image_path,
+        False,
+        None,
+        None,
+        product_id,
+    )
+
+
+# =========================================================
+# PROCESS QUERY
 # =========================================================
 
 if uploaded_file is not None:
@@ -1113,7 +1405,7 @@ if uploaded_file is not None:
     try:
 
         # =================================================
-        # LOAD QUERY
+        # LOAD QUERY IMAGE
         # =================================================
 
         query_image = Image.open(
@@ -1122,7 +1414,7 @@ if uploaded_file is not None:
 
 
         # =================================================
-        # ANALYSIS HEADER
+        # AI ANALYSIS HEADER
         # =================================================
 
         st.markdown(
@@ -1182,7 +1474,7 @@ if uploaded_file is not None:
 
 
         # =================================================
-        # FEATURE EXTRACTION
+        # EXTRACT FEATURES
         # =================================================
 
         features = extract_img_features(
@@ -1201,17 +1493,23 @@ if uploaded_file is not None:
                 color:#6fffd0;
                 font-size:13px;
             ">
+
                 <b>01 ✓</b>
                 &nbsp;&nbsp;
                 Image loaded
+
                 <br><br>
+
                 <b>02 ✓</b>
                 &nbsp;&nbsp;
                 ResNet50 embedding generated
+
                 <br><br>
+
                 <b style="color:white;">03</b>
                 &nbsp;&nbsp;
                 Searching {catalog_size:,} products...
+
             </div>
             """,
             unsafe_allow_html=True,
@@ -1237,21 +1535,29 @@ if uploaded_file is not None:
                 color:#6fffd0;
                 font-size:13px;
             ">
+
                 <b>01 ✓</b>
                 &nbsp;&nbsp;
                 Image loaded
+
                 <br><br>
+
                 <b>02 ✓</b>
                 &nbsp;&nbsp;
                 ResNet50 embedding generated
+
                 <br><br>
+
                 <b>03 ✓</b>
                 &nbsp;&nbsp;
                 {catalog_size:,} products searched
+
                 <br><br>
+
                 <b>04 ✓</b>
                 &nbsp;&nbsp;
                 Top-{top_k} matches ranked
+
             </div>
             """,
             unsafe_allow_html=True,
@@ -1321,7 +1627,7 @@ if uploaded_file is not None:
 
     <div class="fv-metric">
         <div class="fv-metric-label">
-            Catalog
+            Retrieval Catalog
         </div>
 
         <div class="fv-metric-value">
@@ -1351,11 +1657,11 @@ if uploaded_file is not None:
 
     <div class="fv-metric">
         <div class="fv-metric-label">
-            Mode
+            High-Res Catalog
         </div>
 
         <div class="fv-metric-value">
-            FULL
+            {len(hf_mapping):,}
         </div>
     </div>
 
@@ -1385,7 +1691,9 @@ if uploaded_file is not None:
 </div>
 
 <div class="fv-section-description">
-    Lower distance indicates a closer visual embedding match.
+    Ranking is generated by the original 44,441-image
+    retrieval system. Display images are upgraded to
+    high-resolution when a matching product is available.
 </div>
 """
         )
@@ -1450,6 +1758,10 @@ if uploaded_file is not None:
 
                 with column:
 
+                    # -----------------------------------------
+                    # Card header
+                    # -----------------------------------------
+
                     render_html(
                         f"""
 <div class="fv-result">
@@ -1463,16 +1775,43 @@ if uploaded_file is not None:
                     )
 
 
+                    # -----------------------------------------
+                    # Original catalog path
+                    # -----------------------------------------
+
                     image_path = (
                         img_files_list[index]
                     )
 
 
+                    # -----------------------------------------
+                    # High-resolution display
+                    # -----------------------------------------
+
+                    (
+                        recommendation_image,
+                        is_high_res,
+                        width,
+                        height,
+                        product_id,
+                    ) = get_recommendation_image(
+                        image_path
+                    )
+
+
+                    # -----------------------------------------
+                    # Display image
+                    # -----------------------------------------
+
                     st.image(
-                        image_path,
+                        recommendation_image,
                         width=220,
                     )
 
+
+                    # -----------------------------------------
+                    # Distance
+                    # -----------------------------------------
 
                     render_html(
                         f"""
@@ -1483,8 +1822,55 @@ if uploaded_file is not None:
                     )
 
 
+                    # -----------------------------------------
+                    # Resolution label
+                    # -----------------------------------------
+
+                    if is_high_res:
+
+                        if (
+                            width
+                            and height
+                        ):
+
+                            render_html(
+                                f"""
+<div class="fv-resolution">
+    HIGH RES · {width} × {height}
+</div>
+"""
+                            )
+
+                        else:
+
+                            render_html(
+                                """
+<div class="fv-resolution">
+    HIGH-RES IMAGE
+</div>
+"""
+                            )
+
+                    else:
+
+                        render_html(
+                            """
+<div style="
+    margin-top:7px;
+    color:#7b7d89;
+    font-size:9px;
+    font-weight:800;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+">
+    LOCAL FALLBACK
+</div>
+"""
+                        )
+
+
         # =================================================
-        # START NEW SEARCH
+        # NEW SEARCH
         # =================================================
 
         st.markdown(
