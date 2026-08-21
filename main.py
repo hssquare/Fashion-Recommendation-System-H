@@ -31,20 +31,51 @@ st.set_page_config(
 
 
 # =========================================================
-# CONFIGURATION
+# APPLICATION CONFIGURATION
 # =========================================================
 
 FEATURES_FILE = "image_features_embedding.pkl"
 IMAGE_FILES_FILE = "img_files.pkl"
 HF_MAPPING_FILE = "huggingface_product_mapping.json"
 
-HF_DATASET = "PestoRosso/lamoda-fashion-product-images"
+# Your OWN Hugging Face dataset
+HF_DATASET = "GangHitman/fashion-recommendation-images"
 HF_CONFIG = "default"
 HF_SPLIT = "train"
-HF_ROWS_API = "https://datasets-server.huggingface.co/rows"
+
+HF_ROWS_API = (
+    "https://datasets-server.huggingface.co/rows"
+)
 
 APP_MODE_LABEL = "FULL"
-APP_MODE_DESCRIPTION = "44,441-image retrieval catalog"
+APP_MODE_DESCRIPTION = (
+    "44,441-image retrieval catalog"
+)
+
+
+# =========================================================
+# HUGGING FACE SECRET
+# =========================================================
+
+try:
+    HF_TOKEN = st.secrets.get(
+        "HF_TOKEN",
+        ""
+    ).strip()
+except Exception:
+    HF_TOKEN = ""
+
+
+HF_HEADERS = {
+    "User-Agent": "FashionVision/1.0"
+}
+
+
+if HF_TOKEN:
+
+    HF_HEADERS["Authorization"] = (
+        f"Bearer {HF_TOKEN}"
+    )
 
 
 # =========================================================
@@ -947,9 +978,7 @@ def load_hf_mapping():
             encoding="utf-8",
         ) as file:
 
-            mapping = json.load(file)
-
-        return mapping
+            return json.load(file)
 
     except Exception:
 
@@ -1206,12 +1235,12 @@ def extract_product_id(
 
 
 # =========================================================
-# HTTP JSON REQUEST WITH RETRIES
+# REQUEST HUGGING FACE ROW
 # =========================================================
 
 def request_rows(
     row_index,
-    retries=3,
+    retries=4,
 ):
 
     params = {
@@ -1232,15 +1261,21 @@ def request_rows(
             response = requests.get(
                 HF_ROWS_API,
                 params=params,
+                headers=HF_HEADERS,
                 timeout=45,
             )
 
+
+            # ---------------------------------------------
+            # RATE LIMIT
+            # ---------------------------------------------
 
             if response.status_code == 429:
 
                 retry_after = response.headers.get(
                     "Retry-After"
                 )
+
 
                 if retry_after:
 
@@ -1258,22 +1293,30 @@ def request_rows(
 
                     delay = (
                         2.0
-                        * (2 ** attempt)
+                        * (
+                            2 ** attempt
+                        )
                     )
+
 
                 if attempt < retries:
 
                     time.sleep(
                         min(
                             delay,
-                            12.0,
+                            15.0,
                         )
                     )
 
                     continue
 
+
                 return None
 
+
+            # ---------------------------------------------
+            # SERVER ERROR
+            # ---------------------------------------------
 
             if (
                 response.status_code >= 500
@@ -1283,12 +1326,23 @@ def request_rows(
                 time.sleep(
                     min(
                         2.0
-                        * (2 ** attempt),
-                        10.0,
+                        * (
+                            2 ** attempt
+                        ),
+                        12.0,
                     )
                 )
 
                 continue
+
+
+            # ---------------------------------------------
+            # OTHER ERROR
+            # ---------------------------------------------
+
+            if not response.ok:
+
+                return None
 
 
             response.raise_for_status()
@@ -1303,8 +1357,10 @@ def request_rows(
                 time.sleep(
                     min(
                         2.0
-                        * (2 ** attempt),
-                        10.0,
+                        * (
+                            2 ** attempt
+                        ),
+                        12.0,
                     )
                 )
 
@@ -1400,6 +1456,10 @@ def fetch_high_res_image(
     )
 
 
+    # ---------------------------------------------
+    # Verify product ID
+    # ---------------------------------------------
+
     returned_product_id = row.get(
         "id"
     )
@@ -1409,7 +1469,9 @@ def fetch_high_res_image(
 
         try:
 
-            if int(returned_product_id) != int(
+            if int(
+                returned_product_id
+            ) != int(
                 product_id
             ):
 
@@ -1430,6 +1492,10 @@ def fetch_high_res_image(
                 None,
             )
 
+
+    # ---------------------------------------------
+    # Image field
+    # ---------------------------------------------
 
     image_data = row.get(
         "image"
@@ -1471,10 +1537,15 @@ def fetch_high_res_image(
     )
 
 
+    # ---------------------------------------------
+    # Download image bytes
+    # ---------------------------------------------
+
     try:
 
         image_response = requests.get(
             image_url,
+            headers=HF_HEADERS,
             timeout=45,
         )
 
@@ -1496,7 +1567,7 @@ def fetch_high_res_image(
 
 
 # =========================================================
-# RESOLVE HIGH-RES RECOMMENDATION
+# RESOLVE RECOMMENDATION
 # =========================================================
 
 def resolve_recommendation(
@@ -1538,7 +1609,7 @@ def resolve_recommendation(
 
 
 # =========================================================
-# PROCESS UPLOADED IMAGE
+# PROCESS UPLOAD
 # =========================================================
 
 if uploaded_file is not None:
@@ -1546,7 +1617,7 @@ if uploaded_file is not None:
     try:
 
         # =================================================
-        # QUERY IMAGE
+        # LOAD QUERY IMAGE
         # =================================================
 
         query_image = Image.open(
@@ -1555,7 +1626,7 @@ if uploaded_file is not None:
 
 
         # =================================================
-        # ANALYSIS HEADER
+        # AI ANALYSIS HEADER
         # =================================================
 
         st.markdown(
@@ -1597,18 +1668,18 @@ if uploaded_file is not None:
 
         status_box.markdown(
             """
-            <div class="fv-info">
-                <b style="color:white;">01</b>
-                &nbsp;&nbsp;
-                Reading image...
-            </div>
-            """,
+<div class="fv-info">
+    <b style="color:white;">01</b>
+    &nbsp;&nbsp;
+    Reading image...
+</div>
+""",
             unsafe_allow_html=True,
         )
 
 
         # =================================================
-        # EXTRACT FEATURES
+        # FEATURE EXTRACTION
         # =================================================
 
         features = extract_img_features(
@@ -1619,30 +1690,44 @@ if uploaded_file is not None:
 
         status_box.markdown(
             f"""
-            <div class="fv-info">
-                <b style="color:#6fffd0;">01 ✓</b>
-                &nbsp;&nbsp;
-                Image loaded
+<div class="fv-info">
 
-                <br><br>
+    <b style="color:#6fffd0;">
+        01 ✓
+    </b>
 
-                <b style="color:#6fffd0;">02 ✓</b>
-                &nbsp;&nbsp;
-                ResNet50 embedding generated
+    &nbsp;&nbsp;
 
-                <br><br>
+    Image loaded
 
-                <b style="color:white;">03</b>
-                &nbsp;&nbsp;
-                Searching {catalog_size:,} products...
-            </div>
-            """,
+    <br><br>
+
+    <b style="color:#6fffd0;">
+        02 ✓
+    </b>
+
+    &nbsp;&nbsp;
+
+    ResNet50 embedding generated
+
+    <br><br>
+
+    <b style="color:white;">
+        03
+    </b>
+
+    &nbsp;&nbsp;
+
+    Searching {catalog_size:,} products...
+
+</div>
+""",
             unsafe_allow_html=True,
         )
 
 
         # =================================================
-        # RETRIEVAL CANDIDATES
+        # SEARCH CANDIDATES
         # =================================================
 
         candidate_count = min(
@@ -1664,30 +1749,48 @@ if uploaded_file is not None:
 
         status_box.markdown(
             f"""
-            <div class="fv-info">
-                <b style="color:#6fffd0;">01 ✓</b>
-                &nbsp;&nbsp;
-                Image loaded
+<div class="fv-info">
 
-                <br><br>
+    <b style="color:#6fffd0;">
+        01 ✓
+    </b>
 
-                <b style="color:#6fffd0;">02 ✓</b>
-                &nbsp;&nbsp;
-                ResNet50 embedding generated
+    &nbsp;&nbsp;
 
-                <br><br>
+    Image loaded
 
-                <b style="color:#6fffd0;">03 ✓</b>
-                &nbsp;&nbsp;
-                {catalog_size:,} products searched
+    <br><br>
 
-                <br><br>
+    <b style="color:#6fffd0;">
+        02 ✓
+    </b>
 
-                <b style="color:white;">04</b>
-                &nbsp;&nbsp;
-                Resolving high-resolution product images...
-            </div>
-            """,
+    &nbsp;&nbsp;
+
+    ResNet50 embedding generated
+
+    <br><br>
+
+    <b style="color:#6fffd0;">
+        03 ✓
+    </b>
+
+    &nbsp;&nbsp;
+
+    {catalog_size:,} products searched
+
+    <br><br>
+
+    <b style="color:white;">
+        04
+    </b>
+
+    &nbsp;&nbsp;
+
+    Resolving high-resolution catalog images...
+
+</div>
+""",
             unsafe_allow_html=True,
         )
 
@@ -1697,7 +1800,6 @@ if uploaded_file is not None:
         # =================================================
 
         resolved_results = []
-
         failed_products = 0
 
 
@@ -1713,12 +1815,16 @@ if uploaded_file is not None:
             )
 
 
-            resolved = resolve_recommendation(
-                image_path
+            resolved = (
+                resolve_recommendation(
+                    image_path
+                )
             )
 
 
-            if not resolved["available"]:
+            if not resolved[
+                "available"
+            ]:
 
                 failed_products += 1
 
@@ -1733,18 +1839,26 @@ if uploaded_file is not None:
                     "index": int(
                         index
                     ),
-                    "product_id": resolved[
-                        "product_id"
-                    ],
-                    "image": resolved[
-                        "image"
-                    ],
-                    "width": resolved[
-                        "width"
-                    ],
-                    "height": resolved[
-                        "height"
-                    ],
+                    "product_id": (
+                        resolved[
+                            "product_id"
+                        ]
+                    ),
+                    "image": (
+                        resolved[
+                            "image"
+                        ]
+                    ),
+                    "width": (
+                        resolved[
+                            "width"
+                        ]
+                    ),
+                    "height": (
+                        resolved[
+                            "height"
+                        ]
+                    ),
                 }
             )
 
@@ -1760,7 +1874,7 @@ if uploaded_file is not None:
 
 
         # =================================================
-        # QUERY + PIPELINE
+        # QUERY + ANALYSIS
         # =================================================
 
         st.markdown(
@@ -1884,7 +1998,7 @@ if uploaded_file is not None:
 
 <div class="fv-section-description">
     Results are ranked by the original 44,441-image
-    retrieval system and displayed using the
+    retrieval system and displayed using your
     high-resolution catalog.
 </div>
 """
@@ -1898,7 +2012,7 @@ if uploaded_file is not None:
 
 
         # =================================================
-        # RESULTS
+        # DISPLAY RESULTS
         # =================================================
 
         if not resolved_results:
@@ -1909,6 +2023,7 @@ if uploaded_file is not None:
                 "could be loaded right now."
             )
 
+
             if failed_products > 0:
 
                 st.caption(
@@ -1916,6 +2031,7 @@ if uploaded_file is not None:
                     "could not be resolved from the "
                     "high-resolution catalog."
                 )
+
 
         else:
 
@@ -1974,20 +2090,18 @@ if uploaded_file is not None:
                         )
 
 
-                        distance_text = (
-                            result["distance"]
-                        )
-
-
                         render_html(
                             f"""
 <div class="fv-distance">
-    DISTANCE · {distance_text:.4f}
+    DISTANCE ·
+    {result["distance"]:.4f}
 </div>
 
 <div class="fv-resolution">
     HIGH RES ·
-    {result["width"]} × {result["height"]}
+    {result["width"]}
+    ×
+    {result["height"]}
 </div>
 """
                         )
@@ -1998,18 +2112,19 @@ if uploaded_file is not None:
                 render_html(
                     f"""
 <div class="fv-info">
-    Display note:
-    {failed_products} nearby catalog candidates
-    were skipped because their high-resolution image
-    was unavailable. The next available high-resolution
-    matches were displayed instead.
+
+    {failed_products}
+    nearby catalog candidates were skipped
+    because their high-resolution image was unavailable.
+    The next available high-resolution matches were shown.
+
 </div>
 """
                 )
 
 
         # =================================================
-        # START NEW SEARCH
+        # NEW SEARCH
         # =================================================
 
         st.markdown(
