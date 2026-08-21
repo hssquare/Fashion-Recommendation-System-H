@@ -1,43 +1,45 @@
-# 🖼️ Image Similarity Finder
+# 🖼️ Fashion Recommendation System
 
-An image-based fashion product retrieval system built using **Content-Based Image Retrieval (CBIR)** and deep visual feature extraction.
+A **Content-Based Image Retrieval (CBIR)** system that uses deep visual features to find visually similar fashion products from a large product catalog.
 
-Users can upload a fashion or product image and retrieve visually similar products from a catalog using a pretrained **ResNet50** model and nearest-neighbor search.
-
----
-
-## 📌 Introduction
-
-Traditional recommendation systems often depend on ratings, purchase history, or collaborative filtering.
-
-This project uses the **uploaded image itself as the query**.
-
-The query image is converted into a visual feature embedding using a pretrained **ResNet50 CNN**. The embedding is L2-normalized and compared with precomputed catalog embeddings to retrieve visually similar products.
-
-The application is implemented using **Streamlit**.
+Users upload a fashion or product image, and the system extracts its visual representation using a pretrained **ResNet50** model and retrieves the most similar catalog images using nearest-neighbor search.
 
 ---
 
-## 🎯 Project Objective
+## 📌 Overview
 
-- 📷 Accept a fashion/product image
-- 🧠 Extract visual features using ResNet50
-- 🔍 Search a large product catalog
-- 🏷️ Retrieve visually similar products
-- 📊 Rank and display recommendations
-- 🌐 Provide an interactive web interface
+Traditional recommendation systems often rely on ratings, purchase history, user preferences, or collaborative filtering.
+
+This project instead uses the **image itself as the query**.
+
+The uploaded image is converted into a visual feature embedding using a pretrained **ResNet50 CNN**. The embedding is L2-normalized and compared with precomputed catalog embeddings to retrieve visually similar products.
+
+The application is built with **Streamlit**.
 
 ---
 
-## ⚙️ Proposed Methodology
+## 🎯 Project Objectives
 
-### 1️⃣ Feature Extraction
+- 📷 Accept a fashion/product image as input
+- 🧠 Extract deep visual features using ResNet50
+- 🗂️ Build a searchable feature database
+- 🔍 Retrieve visually similar products
+- 📊 Rank results using nearest-neighbor search
+- 🔢 Support Top 5, Top 10, and Top 15 retrieval
+- 📏 Display retrieval distance
+- 📈 Evaluate retrieval quality quantitatively
 
-A pretrained **ResNet50** model with ImageNet weights is used as a **frozen feature extractor**.
+---
 
-The classification head is removed and **Global Max Pooling** is applied to generate a visual feature representation.
+# ⚙️ Methodology
 
-The current implementation does **not** train or fine-tune ResNet50 on the fashion dataset.
+## 1. Feature Extraction
+
+The project uses **ImageNet-pretrained ResNet50 as a frozen feature extractor**.
+
+The classification head is removed and **Global Max Pooling** is applied to generate a compact visual representation.
+
+The model is **not trained or fine-tuned on the fashion dataset**.
 
 ```text
 Input Image
@@ -53,20 +55,26 @@ Feature Embedding
 L2 Normalization
 ```
 
-### 2️⃣ Feature Database Creation
+---
 
-The catalog contains **44,441 product images**.
+## 2. Feature Database Creation
+
+The current feature database contains:
+
+```text
+44,441 catalog images
+```
 
 Each image is processed through the same ResNet50 pipeline.
 
-The resulting embeddings and image paths are stored in:
+The generated embeddings and corresponding image paths are stored in:
 
 ```text
 image_features_embedding.pkl
 img_files.pkl
 ```
 
-The large embedding file is tracked using **Git LFS**.
+The large embedding file is managed using **Git LFS**.
 
 ```text
 44,441 Catalog Images
@@ -84,35 +92,44 @@ Feature Embeddings
 image_features_embedding.pkl
 ```
 
-### 3️⃣ Similarity Search
+---
 
-The query embedding is compared with catalog embeddings using
-**scikit-learn NearestNeighbors**.
+## 3. Similarity Search
 
-Current configuration:
+The query embedding is compared with the catalog embeddings using:
 
 ```text
-Algorithm : brute-force nearest-neighbor search
-Metric    : Euclidean distance
+Library  : scikit-learn
+Algorithm: NearestNeighbors
+Search   : brute-force
+Metric   : Euclidean distance
 ```
 
-Because the embeddings are L2-normalized, Euclidean distance and cosine similarity produce the same ranking for the current representation.
+Because the embeddings are L2-normalized, Euclidean distance and cosine similarity produce the same ranking for the current feature representation.
 
-### 4️⃣ Top-K Retrieval
-
-Users can select:
-
-- 🥇 Top 5
-- 🥈 Top 10
-- 🥉 Top 15
-
-A smaller Euclidean distance indicates a closer embedding match.
+A **smaller Euclidean distance indicates a closer embedding match**.
 
 ---
 
-## 🧠 System Architecture
+## 4. Top-K Retrieval
 
-### 📦 Catalog Feature Generation
+The application supports:
+
+```text
+Top 5
+Top 10
+Top 15
+```
+
+The retrieved products are displayed dynamically in the Streamlit interface.
+
+Each result also displays its Euclidean distance.
+
+---
+
+# 🧠 System Architecture
+
+## Catalog Feature Generation
 
 ```text
 Fashion Product Catalog
@@ -126,12 +143,12 @@ Global Max Pooling
 L2 Normalization
         ↓
 Feature Database
-   ┌────┴────┐
-   ↓         ↓
+       / \
+      /   \
 Embeddings  Image Paths
 ```
 
-### 🔎 Query and Retrieval
+## Query and Retrieval
 
 ```text
 User Query Image
@@ -148,22 +165,28 @@ NearestNeighbors
        ↓
 Euclidean Distance
        ↓
-Top-K Results
+Top-K Similar Products
 ```
 
 ---
 
-## 📂 Dataset
+# 📂 Dataset
 
-The project uses the **[Fashion Product Images Dataset](https://www.kaggle.com/paramaggarwal/fashion-product-images-dataset)** from Kaggle.
+The project uses the:
 
-Current feature database:
+**Fashion Product Images Dataset**
+
+Dataset source:
+
+https://www.kaggle.com/paramaggarwal/fashion-product-images-dataset
+
+The current feature database contains:
 
 ```text
 44,441 product images
 ```
 
-The original dataset is **not stored in this GitHub repository** because of its size.
+The full dataset is **not stored in this GitHub repository**.
 
 Expected local structure:
 
@@ -180,9 +203,9 @@ fashion_small/images/10000.jpg
 fashion_small/images/11263.jpg
 ```
 
-### 🏷️ Dataset Metadata
+### Dataset Metadata
 
-The metadata includes:
+The dataset metadata contains fields such as:
 
 - Product ID
 - Gender
@@ -194,49 +217,50 @@ The metadata includes:
 - Usage
 - Product Display Name
 
-`articleType` is used as the relevance criterion during evaluation.
+For the current retrieval evaluation, **`articleType` is used as the relevance criterion**.
+
+> `articleType` is a category-based proxy for relevance. It is not a perfect ground-truth measure of human-perceived visual similarity.
 
 ---
 
-## 📊 Evaluation
+# 📊 Evaluation
 
-Evaluation configuration:
+The baseline retrieval system was evaluated using:
 
 ```text
-Catalog Size        : 44,441 images
-Evaluation Queries  : 500 images
-Relevance Criterion : articleType
+Catalog Size       : 44,441 images
+Evaluation Queries : 500 images
+Relevance Criterion: articleType
 ```
 
-`articleType` is a **category-based proxy for relevance**, not a perfect ground-truth measure of human-perceived visual similarity.
+The same deterministic sample of 500 queries was used for the baseline experiments.
 
-### 📈 Retrieval Metrics
+## Baseline Results
 
 | Metric | @5 | @10 | @15 |
 |---|---:|---:|---:|
 | **Precision** | **77.96%** | **74.76%** | **73.79%** |
-| **Recall** | **0.86%** | **1.46%** | **2.01%** |
-| **mAP** | **73.20%** | **68.57%** | **66.61%** |
 
-### 📌 Interpretation
+### Interpretation
 
 The baseline achieved:
 
-- ✅ **77.96% Precision@5**
-- ✅ **74.76% Precision@10**
-- ✅ **73.79% Precision@15**
-- ✅ **73.20% mAP@5**
+- **77.96% Precision@5**
+- **74.76% Precision@10**
+- **73.79% Precision@15**
 
-These results represent category-consistent retrieval under the selected `articleType` relevance definition.
+These values measure how often the retrieved products belong to the same `articleType` category as the query.
+
+Because `articleType` is only a proxy relevance label, these metrics should be interpreted as **category-consistency retrieval performance**, not human-judged visual similarity.
 
 ---
 
-## 🔬 Distance Metric Experiment
+# 🔬 Distance Metric Experiment
 
-Two metrics were evaluated using the same:
+Two distance metrics were evaluated using the same:
 
 - 44,441 embeddings
-- 500 queries
+- 500 evaluation queries
 - `articleType` relevance criterion
 - L2-normalized embeddings
 
@@ -245,34 +269,72 @@ Two metrics were evaluated using the same:
 | **Euclidean** | **77.96%** | **74.76%** | **73.79%** |
 | **Cosine** | **77.96%** | **74.76%** | **73.79%** |
 
-### ✅ Conclusion
+### Conclusion
 
-Euclidean distance and cosine similarity produced the same ranking for the current normalized embeddings.
+Both metrics produced the same retrieval ranking for the current L2-normalized embeddings.
 
-The application therefore continues to use **Euclidean distance with NearestNeighbors**.
+Therefore, the production application continues to use:
+
+```text
+NearestNeighbors
++
+Euclidean distance
+```
 
 ---
 
-## ✨ Features
+# 🔬 Pooling Experiment
+
+A second experiment compared:
+
+```text
+Global Max Pooling
+vs.
+Global Average Pooling
+```
+
+using the same 44,441-image catalog and the same evaluation methodology.
+
+| Feature Representation | Precision@5 | Precision@10 | Precision@15 |
+|---|---:|---:|---:|
+| **Global Max Pooling** | **77.96%** | **74.76%** | **73.79%** |
+| Global Average Pooling | 76.36% | 73.58% | 71.99% |
+
+### Conclusion
+
+Global Max Pooling performed better across all three Precision@K measurements.
+
+Therefore, the production system retains:
+
+```text
+ResNet50
++
+GlobalMaxPooling2D
+```
+
+---
+
+# ✨ Features
 
 - 📷 Upload a fashion/product image
 - 🧠 Pretrained ResNet50 feature extraction
 - 🔍 Content-Based Image Retrieval
 - 🗂️ Search across 44,441 catalog images
 - 📊 Top 5 / Top 10 / Top 15 recommendations
-- 📏 Display Euclidean distance
+- 📏 Euclidean retrieval distance
 - ⚡ Cached ResNet50 model
 - 🔎 Nearest-neighbor retrieval
 - 💾 Precomputed feature database
-- 📈 Precision, Recall, and mAP evaluation
-- 🔬 Euclidean vs. cosine comparison
-- 🌐 Streamlit interface
+- 📈 Precision@K evaluation
+- 🔬 Euclidean vs. cosine experiment
+- 🔬 Global Max vs. Global Average Pooling experiment
+- 🌐 Streamlit web interface
 - 💾 Git LFS support
 - 🧠 In-memory query image processing
 
 ---
 
-## 🛠️ Tech Stack
+# 🛠️ Tech Stack
 
 | Technology | Purpose |
 |---|---|
@@ -282,13 +344,12 @@ The application therefore continues to use **Euclidean distance with NearestNeig
 | 🔢 **NumPy** | Numerical computation |
 | 🐼 **Pandas** | Metadata and evaluation |
 | 🖼️ **Pillow** | Image processing |
-| 👁️ **OpenCV** | Image processing |
 | 🌐 **Streamlit** | Web application |
 | 📦 **Git LFS** | Large embedding management |
 
 ---
 
-## 📁 Project Structure
+# 📁 Project Structure
 
 ```text
 Fashion-Recommendation-System-H/
@@ -303,7 +364,8 @@ Fashion-Recommendation-System-H/
 │
 ├── evaluation/
 │   ├── evaluate_retrieval.py
-│   └── evaluate_cosine.py
+│   ├── evaluate_cosine.py
+│   └── evaluate_avg_pooling_metrics.py
 │
 ├── image_features_embedding.pkl
 ├── img_files.pkl
@@ -313,45 +375,55 @@ Fashion-Recommendation-System-H/
 └── uploader/
 ```
 
-### 📄 Main Files
+### Main Files
 
 | File | Purpose |
 |---|---|
 | `app.py` | Generates ResNet50 embeddings |
 | `main.py` | Streamlit recommendation application |
-| `image_features_embedding.pkl` | Precomputed feature embeddings |
-| `img_files.pkl` | Corresponding image paths |
-| `evaluation/evaluate_retrieval.py` | Precision, Recall and mAP |
+| `image_features_embedding.pkl` | Precomputed production feature embeddings |
+| `img_files.pkl` | Corresponding catalog image paths |
+| `evaluation/evaluate_retrieval.py` | Baseline retrieval evaluation |
 | `evaluation/evaluate_cosine.py` | Cosine-distance experiment |
+| `evaluation/evaluate_avg_pooling_metrics.py` | Average-pooling experiment |
 | `evaluation_metadata.py` | Metadata parsing |
 | `requirements.txt` | Python dependencies |
 
 ---
 
-## 🚀 Installation
+# 🚀 Installation
 
-### 1️⃣ Clone the Repository
+## 1. Clone the Repository
 
 ```bash
 git clone https://github.com/hssquare/Fashion-Recommendation-System-H.git
 cd Fashion-Recommendation-System-H
 ```
 
-### 2️⃣ Create a Virtual Environment
+## 2. Install Git LFS
+
+Git LFS is required for the large embedding file.
+
+```bash
+git lfs install
+git lfs pull
+```
+
+## 3. Create a Virtual Environment
 
 ```bash
 python -m venv venv
 ```
 
-### 3️⃣ Activate the Environment
+## 4. Activate the Environment
 
-#### Windows PowerShell
+### Windows PowerShell
 
 ```powershell
 venv\Scripts\Activate.ps1
 ```
 
-### 4️⃣ Install Dependencies
+## 5. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -359,42 +431,12 @@ pip install -r requirements.txt
 
 ---
 
-## 📦 Git LFS Setup
-
-The repository uses **Git LFS** for the large embedding file.
-
-```bash
-git lfs install
-git lfs pull
-```
-
-This retrieves the actual LFS-managed embedding file:
-
-```text
-image_features_embedding.pkl
-```
 
 ---
 
-## 📂 Dataset Setup
+# 🧮 Generate Feature Embeddings
 
-The complete dataset is not stored in GitHub.
-
-Create:
-
-```text
-Fashion-Recommendation-System-H/
-└── fashion_small/
-    └── images/
-```
-
-Place the catalog images inside `fashion_small/images/`.
-
----
-
-## 🧮 Generate Feature Embeddings
-
-To regenerate the feature database:
+To regenerate the production feature database:
 
 ```bash
 python app.py
@@ -402,18 +444,18 @@ python app.py
 
 The script:
 
-1. Loads the pretrained ResNet50 feature extractor.
+1. Loads the ImageNet-pretrained ResNet50 feature extractor.
 2. Reads images from `fashion_small/images`.
-3. Extracts visual embeddings.
-4. L2-normalizes the embeddings.
+3. Extracts visual feature embeddings.
+4. Applies L2 normalization.
 5. Saves `image_features_embedding.pkl`.
 6. Saves `img_files.pkl`.
 
-> Processing all 44,441 images can take significant time on a CPU.
+> Processing the complete 44,441-image catalog can take significant time on a CPU.
 
 ---
 
-## ▶️ Run the Application
+# ▶️ Run the Application
 
 Start Streamlit:
 
@@ -427,61 +469,60 @@ Open:
 http://localhost:8501
 ```
 
-Upload an image and select 5, 10, or 15 recommendations.
+Upload an image and select:
+
+```text
+5
+10
+15
+```
+
+recommendations.
 
 ---
 
-## 🧪 Run Evaluation
+# 🧪 Run Evaluation
 
-Run:
+### Baseline Evaluation
 
 ```bash
 python evaluation/evaluate_retrieval.py
 ```
 
-Reports:
+The baseline evaluation uses a deterministic sample of 500 queries and reports Precision@5, Precision@10, and Precision@15.
 
-- Precision@5
-- Precision@10
-- Precision@15
-- Recall@5
-- Recall@10
-- Recall@15
-- mAP@5
-- mAP@10
-- mAP@15
-
-The current evaluation uses a deterministic sample of 500 queries.
-
-### 🔬 Cosine Experiment
+### Cosine Distance Experiment
 
 ```bash
 python evaluation/evaluate_cosine.py
 ```
 
-This compares cosine similarity with the Euclidean baseline.
+This compares cosine distance with the Euclidean baseline.
+
+### Average Pooling Experiment
+
+The Average Pooling experiment requires the generated experimental embeddings and is intended for model comparison rather than production inference.
 
 ---
 
-## ⚠️ Limitations
+# ⚠️ Limitations
 
-- 🖼️ Current feature database uses a low-resolution image subset.
+- 🖼️ The current production feature database uses a low-resolution image subset.
 - 📐 Current catalog images are approximately **60×80 pixels**.
 - 🧠 ResNet50 is an ImageNet-pretrained frozen feature extractor.
 - 🏋️ No fashion-specific fine-tuning is currently performed.
 - 🏷️ `articleType` is only a proxy relevance label.
 - 👁️ Category similarity does not always equal visual similarity.
-- 📊 Retrieval quality varies across categories and image styles.
+- 📊 Retrieval quality can vary between product categories and image styles.
 - 💾 The complete dataset is not stored in GitHub.
-- 🚫 The system does not currently use price, brand, descriptions, ratings, purchase history, or user preferences.
+- 🚫 The system does not use price, brand, descriptions, ratings, purchase history, or user preferences.
 
 ---
 
-## 🔮 Future Improvements
+# 🔮 Future Improvements
 
-- 🎯 Fine-tune a CNN on fashion-specific data
-- 🖼️ Evaluate higher-resolution images
-- 🧪 Compare Global Max Pooling with Global Average Pooling
+- 🎯 Fine-tune a CNN using fashion-specific data
+- 🖼️ Evaluate higher-resolution product images
 - 🧠 Experiment with stronger image-embedding models
 - 👗 Use fashion-specific pretrained models
 - 🏷️ Add category-aware retrieval
@@ -495,54 +536,56 @@ This compares cosine similarity with the Euclidean baseline.
 
 ---
 
-## ✅ Conclusion
+# ✅ Conclusion
 
-The **Image Similarity Finder** demonstrates a complete **Content-Based Image Retrieval** pipeline:
+This project demonstrates a complete **Content-Based Image Retrieval** pipeline:
 
 ```text
 Deep Visual Feature Extraction
-            ↓
+             ↓
 Embedding Normalization
-            ↓
+             ↓
 Nearest-Neighbor Search
-            ↓
+             ↓
 Top-K Retrieval
-            ↓
+             ↓
 Quantitative Evaluation
 ```
 
-The project combines:
+The current production system uses:
 
-- 👁️ Computer Vision
-- 🧠 Deep Learning
-- 🔢 Feature Embeddings
-- 🔎 Information Retrieval
-- 🐍 Python
-- 🧠 TensorFlow / Keras
-- 🔍 scikit-learn
-- 🌐 Streamlit
+```text
+Pretrained ResNet50
+        ↓
+Global Max Pooling
+        ↓
+L2 Normalization
+        ↓
+NearestNeighbors
+        ↓
+Euclidean Distance
+```
 
-to provide image-based fashion product discovery without relying on ratings, purchase history, or collaborative filtering.
+The baseline achieved:
+
+```text
+Precision@5  = 77.96%
+Precision@10 = 74.76%
+Precision@15 = 73.79%
+```
+
+on 500 evaluation queries using `articleType` as the category-based relevance criterion.
 
 ---
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-## 👤 Author
+# 👤 Author
 
 ### **Harshal**
 
-🔗 GitHub: https://github.com/hssquare
+GitHub:
 
-📦 Repository: https://github.com/hssquare/Fashion-Recommendation-System-H
+https://github.com/hssquare
+
+Repository:
+
+https://github.com/hssquare/Fashion-Recommendation-System-H
