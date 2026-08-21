@@ -15,7 +15,7 @@ from tensorflow.keras.models import Sequential
 
 
 # =========================================================
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # =========================================================
 
 st.set_page_config(
@@ -27,11 +27,25 @@ st.set_page_config(
 
 
 # =========================================================
-# CUSTOM HTML HELPER
+# CUSTOM HTML RENDERER
 # =========================================================
 
-def render_html(html):
-    st.html(html)
+def render_html(html_content):
+    """
+    Render custom HTML using Streamlit's HTML renderer.
+    """
+    st.html(html_content)
+
+
+# =========================================================
+# FULL CATALOG CONFIGURATION
+# =========================================================
+
+FEATURES_FILE = "image_features_embedding.pkl"
+IMAGE_FILES_FILE = "img_files.pkl"
+
+APP_MODE_LABEL = "FULL"
+APP_MODE_DESCRIPTION = "44,441-image local catalog"
 
 
 # =========================================================
@@ -42,9 +56,9 @@ st.markdown(
     """
     <style>
 
-    /* ================================================
+    /* =====================================================
        GLOBAL
-       ================================================ */
+       ===================================================== */
 
     .stApp {
         background:
@@ -69,9 +83,9 @@ st.markdown(
     }
 
 
-    /* ================================================
+    /* =====================================================
        STREAMLIT CLEANUP
-       ================================================ */
+       ===================================================== */
 
     #MainMenu {
         visibility: hidden;
@@ -92,9 +106,9 @@ st.markdown(
     }
 
 
-    /* ================================================
+    /* =====================================================
        NAVIGATION
-       ================================================ */
+       ===================================================== */
 
     .fv-nav {
         display: flex;
@@ -199,9 +213,9 @@ st.markdown(
     }
 
 
-    /* ================================================
+    /* =====================================================
        HERO
-       ================================================ */
+       ===================================================== */
 
     .fv-hero {
         position: relative;
@@ -271,9 +285,9 @@ st.markdown(
     }
 
 
-    /* ================================================
-       SECTION HEADER
-       ================================================ */
+    /* =====================================================
+       SECTION HEADINGS
+       ===================================================== */
 
     .fv-section-eyebrow {
         color: #888b9c;
@@ -310,9 +324,39 @@ st.markdown(
     }
 
 
-    /* ================================================
+    /* =====================================================
+       MODE CARD
+       ===================================================== */
+
+    .fv-mode-card {
+        margin-top: 30px;
+
+        padding: 15px 18px;
+
+        border: 1px solid rgba(255,255,255,0.07);
+
+        border-radius: 16px;
+
+        background:
+            rgba(255,255,255,0.022);
+
+        color: #888b9c;
+
+        font-size: 11px;
+
+        line-height: 1.6;
+    }
+
+    .fv-mode-value {
+        color: #6fffd0;
+
+        font-weight: 900;
+    }
+
+
+    /* =====================================================
        UPLOAD CARD
-       ================================================ */
+       ===================================================== */
 
     .fv-upload {
         margin-top: 32px;
@@ -336,6 +380,21 @@ st.markdown(
 
         box-shadow:
             inset 0 0 90px rgba(108,65,255,0.025);
+
+        transition:
+            transform 220ms ease,
+            border-color 220ms ease,
+            box-shadow 220ms ease;
+    }
+
+    .fv-upload:hover {
+        transform: translateY(-4px);
+
+        border-color:
+            rgba(145,110,255,0.85);
+
+        box-shadow:
+            0 25px 100px rgba(87,45,200,0.14);
     }
 
     .fv-upload-icon {
@@ -390,9 +449,9 @@ st.markdown(
     }
 
 
-    /* ================================================
-       FILE UPLOADER
-       ================================================ */
+    /* =====================================================
+       STREAMLIT FILE UPLOADER
+       ===================================================== */
 
     [data-testid="stFileUploader"] {
         margin-top: -12px;
@@ -419,9 +478,9 @@ st.markdown(
     }
 
 
-    /* ================================================
+    /* =====================================================
        SELECT BOX
-       ================================================ */
+       ===================================================== */
 
     [data-testid="stSelectbox"] label {
         color: #898c9d !important;
@@ -436,9 +495,9 @@ st.markdown(
     }
 
 
-    /* ================================================
-       ANALYSIS
-       ================================================ */
+    /* =====================================================
+       ANALYSIS CARD
+       ===================================================== */
 
     .fv-analysis {
         padding: 28px;
@@ -508,9 +567,9 @@ st.markdown(
     }
 
 
-    /* ================================================
+    /* =====================================================
        QUERY IMAGE
-       ================================================ */
+       ===================================================== */
 
     [data-testid="stImage"] img {
         border-radius: 20px;
@@ -520,9 +579,9 @@ st.markdown(
     }
 
 
-    /* ================================================
-       RESULTS
-       ================================================ */
+    /* =====================================================
+       RESULT CARDS
+       ===================================================== */
 
     .fv-result {
         padding: 10px;
@@ -600,9 +659,9 @@ st.markdown(
     }
 
 
-    /* ================================================
+    /* =====================================================
        FOOTER
-       ================================================ */
+       ===================================================== */
 
     .fv-footer {
         display: flex;
@@ -626,6 +685,75 @@ st.markdown(
         text-transform: uppercase;
     }
 
+
+    /* =====================================================
+       BUTTON
+       ===================================================== */
+
+    .stButton > button {
+        min-height: 48px;
+
+        border-radius: 14px !important;
+
+        border:
+            1px solid rgba(255,255,255,0.10) !important;
+
+        background:
+            linear-gradient(
+                135deg,
+                rgba(124,60,255,0.22),
+                rgba(0,212,255,0.10)
+            ) !important;
+
+        color: #ffffff !important;
+
+        font-weight: 800 !important;
+
+        transition:
+            transform 180ms ease,
+            border-color 180ms ease,
+            background 180ms ease !important;
+    }
+
+    .stButton > button:hover {
+        transform: translateY(-2px);
+
+        border-color:
+            rgba(124,60,255,0.55) !important;
+
+        background:
+            linear-gradient(
+                135deg,
+                rgba(124,60,255,0.35),
+                rgba(0,212,255,0.15)
+            ) !important;
+    }
+
+
+    /* =====================================================
+       RESPONSIVE
+       ===================================================== */
+
+    @media (max-width: 900px) {
+
+        .fv-nav {
+            margin-bottom: 50px;
+        }
+
+        .fv-hero-title {
+            font-size: clamp(48px, 13vw, 90px);
+        }
+
+        .fv-hero-description {
+            font-size: 15px;
+        }
+
+        .fv-footer {
+            flex-direction: column;
+            gap: 10px;
+        }
+    }
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -633,21 +761,30 @@ st.markdown(
 
 
 # =========================================================
-# NAV
+# NAVIGATION
 # =========================================================
 
 render_html(
     """
 <div class="fv-nav">
+
     <div class="fv-brand">
-        <div class="fv-logo">✦</div>
-        <div class="fv-brand-text">Fashion Vision</div>
+
+        <div class="fv-logo">
+            ✦
+        </div>
+
+        <div class="fv-brand-text">
+            Fashion Vision
+        </div>
+
     </div>
 
     <div class="fv-online">
         <span class="fv-online-dot"></span>
         AI Online
     </div>
+
 </div>
 """
 )
@@ -660,6 +797,7 @@ render_html(
 render_html(
     """
 <div class="fv-hero">
+
     <div class="fv-eyebrow">
         COMPUTER VISION · VISUAL RETRIEVAL
     </div>
@@ -675,44 +813,69 @@ render_html(
         retrieval engine discover visually similar products
         from a catalog of more than 44,000 images.
     </div>
+
 </div>
 """
 )
 
 
 # =========================================================
-# LOAD DATABASE
+# LOAD FULL FEATURE DATABASE
 # =========================================================
 
 @st.cache_data
 def load_feature_database():
 
     with open(
-        "image_features_embedding.pkl",
+        FEATURES_FILE,
         "rb",
     ) as file:
+
         features = pickle.load(file)
 
     with open(
-        "img_files.pkl",
+        IMAGE_FILES_FILE,
         "rb",
     ) as file:
+
         image_files = pickle.load(file)
 
-    return (
-        np.asarray(
-            features,
-            dtype=np.float32,
-        ),
-        image_files,
+    features = np.asarray(
+        features,
+        dtype=np.float32,
     )
 
+    if len(features) != len(image_files):
+        raise ValueError(
+            "The number of embeddings does not match "
+            "the number of image paths."
+        )
 
-features_list, img_files_list = load_feature_database()
+    return features, image_files
+
+
+try:
+
+    features_list, img_files_list = (
+        load_feature_database()
+    )
+
+except Exception as exc:
+
+    st.error(
+        f"Could not load the feature database: {exc}"
+    )
+
+    st.stop()
+
+
+catalog_size = len(
+    features_list
+)
 
 
 # =========================================================
-# LOAD MODEL
+# LOAD RESNET50
 # =========================================================
 
 @st.cache_resource
@@ -734,7 +897,17 @@ def load_model():
     )
 
 
-model = load_model()
+try:
+
+    model = load_model()
+
+except Exception as exc:
+
+    st.error(
+        f"Could not load ResNet50: {exc}"
+    )
+
+    st.stop()
 
 
 # =========================================================
@@ -745,6 +918,7 @@ query_col, control_col = st.columns(
     [2.5, 1],
     gap="large",
 )
+
 
 with query_col:
 
@@ -765,13 +939,45 @@ with query_col:
 """
     )
 
+
 with control_col:
 
     top_k = st.selectbox(
         "RESULT COUNT",
-        [5, 10, 15],
+        options=[5, 10, 15],
         index=0,
     )
+
+
+# =========================================================
+# FULL MODE CARD
+# =========================================================
+
+render_html(
+    f"""
+<div class="fv-mode-card">
+
+    Current mode:
+
+    <span class="fv-mode-value">
+        {APP_MODE_LABEL}
+    </span>
+
+    &nbsp;·&nbsp;
+
+    {APP_MODE_DESCRIPTION}
+
+    &nbsp;·&nbsp;
+
+    Catalog size:
+
+    <span class="fv-mode-value">
+        {catalog_size:,}
+    </span>
+
+</div>
+"""
+)
 
 
 # =========================================================
@@ -781,7 +987,10 @@ with control_col:
 render_html(
     """
 <div class="fv-upload">
-    <div class="fv-upload-icon">↑</div>
+
+    <div class="fv-upload-icon">
+        ↑
+    </div>
 
     <div class="fv-upload-title">
         Drop your image here
@@ -792,6 +1001,7 @@ render_html(
         <br>
         Visual search powered by ResNet50
     </div>
+
 </div>
 """
 )
@@ -810,16 +1020,23 @@ uploaded_file = st.file_uploader(
 
 
 # =========================================================
-# NEAREST NEIGHBOR INDEX
+# BUILD NEAREST NEIGHBOR INDEX
 # =========================================================
 
+search_count = min(
+    top_k + 1,
+    catalog_size,
+)
+
 neighbors = NearestNeighbors(
-    n_neighbors=top_k + 1,
+    n_neighbors=search_count,
     algorithm="brute",
     metric="euclidean",
 )
 
-neighbors.fit(features_list)
+neighbors.fit(
+    features_list
+)
 
 
 # =========================================================
@@ -888,24 +1105,31 @@ def retrieve(features):
 
 
 # =========================================================
-# PROCESS QUERY
+# PROCESS UPLOADED IMAGE
 # =========================================================
 
 if uploaded_file is not None:
 
     try:
+
+        # =================================================
+        # LOAD QUERY
+        # =================================================
+
         query_image = Image.open(
             uploaded_file
         ).convert("RGB")
 
+
         # =================================================
-        # AI PROCESSING STATE
+        # ANALYSIS HEADER
         # =================================================
 
         st.markdown(
-            "<div style='height:70px'></div>",
+            "<div style='height:90px'></div>",
             unsafe_allow_html=True,
         )
+
 
         render_html(
             """
@@ -918,27 +1142,30 @@ if uploaded_file is not None:
 </div>
 
 <div class="fv-section-description">
-    Your image is being transformed into a visual embedding
-    and searched against the fashion catalog.
+    Your image is converted into a deep visual embedding
+    and searched against the full fashion catalog.
 </div>
 """
         )
+
 
         st.markdown(
             "<div style='height:25px'></div>",
             unsafe_allow_html=True,
         )
 
-        progress_box = st.empty()
 
-        # -------------------------------------------------
-        # STEP 01
-        # -------------------------------------------------
+        # =================================================
+        # PROCESSING STATUS
+        # =================================================
 
-        progress_box.markdown(
+        status_box = st.empty()
+
+
+        status_box.markdown(
             """
             <div style="
-                padding:20px;
+                padding:18px;
                 border-radius:18px;
                 border:1px solid rgba(255,255,255,0.08);
                 background:rgba(255,255,255,0.025);
@@ -946,54 +1173,28 @@ if uploaded_file is not None:
                 font-size:13px;
             ">
                 <b style="color:white;">01</b>
-                &nbsp;&nbsp; Reading image...
+                &nbsp;&nbsp;
+                Reading image...
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        import time
-        time.sleep(0.25)
 
-        # -------------------------------------------------
-        # STEP 02
-        # -------------------------------------------------
-
-        progress_box.markdown(
-            """
-            <div style="
-                padding:20px;
-                border-radius:18px;
-                border:1px solid rgba(0,255,180,0.14);
-                background:rgba(0,255,180,0.035);
-                color:#6fffd0;
-                font-size:13px;
-            ">
-                <b>01 ✓</b>
-                &nbsp;&nbsp; Image loaded
-                <br><br>
-                <b style="color:white;">02</b>
-                &nbsp;&nbsp; Extracting visual features...
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        # =================================================
+        # FEATURE EXTRACTION
+        # =================================================
 
         features = extract_img_features(
             query_image,
             model,
         )
 
-        time.sleep(0.25)
 
-        # -------------------------------------------------
-        # STEP 03
-        # -------------------------------------------------
-
-        progress_box.markdown(
-            """
+        status_box.markdown(
+            f"""
             <div style="
-                padding:20px;
+                padding:18px;
                 border-radius:18px;
                 border:1px solid rgba(0,255,180,0.14);
                 background:rgba(0,255,180,0.035);
@@ -1001,32 +1202,35 @@ if uploaded_file is not None:
                 font-size:13px;
             ">
                 <b>01 ✓</b>
-                &nbsp;&nbsp; Image loaded
+                &nbsp;&nbsp;
+                Image loaded
                 <br><br>
                 <b>02 ✓</b>
-                &nbsp;&nbsp; ResNet50 embedding generated
+                &nbsp;&nbsp;
+                ResNet50 embedding generated
                 <br><br>
                 <b style="color:white;">03</b>
-                &nbsp;&nbsp; Searching 44,441 products...
+                &nbsp;&nbsp;
+                Searching {catalog_size:,} products...
             </div>
             """,
             unsafe_allow_html=True,
         )
+
+
+        # =================================================
+        # RETRIEVAL
+        # =================================================
 
         distances, indices = retrieve(
             features
         )
 
-        time.sleep(0.25)
 
-        # -------------------------------------------------
-        # STEP 04
-        # -------------------------------------------------
-
-        progress_box.markdown(
-            """
+        status_box.markdown(
+            f"""
             <div style="
-                padding:20px;
+                padding:18px;
                 border-radius:18px;
                 border:1px solid rgba(0,255,180,0.14);
                 background:rgba(0,255,180,0.035);
@@ -1034,39 +1238,44 @@ if uploaded_file is not None:
                 font-size:13px;
             ">
                 <b>01 ✓</b>
-                &nbsp;&nbsp; Image loaded
+                &nbsp;&nbsp;
+                Image loaded
                 <br><br>
                 <b>02 ✓</b>
-                &nbsp;&nbsp; ResNet50 embedding generated
+                &nbsp;&nbsp;
+                ResNet50 embedding generated
                 <br><br>
                 <b>03 ✓</b>
-                &nbsp;&nbsp; 44,441 products searched
+                &nbsp;&nbsp;
+                {catalog_size:,} products searched
                 <br><br>
                 <b>04 ✓</b>
-                &nbsp;&nbsp; Matches ranked successfully
+                &nbsp;&nbsp;
+                Top-{top_k} matches ranked
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        time.sleep(0.35)
 
-        # Remove processing panel
-        progress_box.empty()
+        status_box.empty()
+
 
         # =================================================
-        # QUERY + ANALYSIS
+        # QUERY + PIPELINE
         # =================================================
 
         st.markdown(
-            "<div style='height:45px'></div>",
+            "<div style='height:35px'></div>",
             unsafe_allow_html=True,
         )
+
 
         image_col, analysis_col = st.columns(
             [1.15, 1],
             gap="large",
         )
+
 
         with image_col:
 
@@ -1075,10 +1284,11 @@ if uploaded_file is not None:
                 width=500,
             )
 
+
         with analysis_col:
 
             render_html(
-                """
+                f"""
 <div class="fv-analysis">
 
     <div class="fv-analysis-label">
@@ -1093,6 +1303,7 @@ if uploaded_file is not None:
         <div class="fv-metric-label">
             Backbone
         </div>
+
         <div class="fv-metric-value">
             ResNet50
         </div>
@@ -1102,6 +1313,7 @@ if uploaded_file is not None:
         <div class="fv-metric-label">
             Pooling
         </div>
+
         <div class="fv-metric-value">
             Global Max
         </div>
@@ -1111,8 +1323,9 @@ if uploaded_file is not None:
         <div class="fv-metric-label">
             Catalog
         </div>
+
         <div class="fv-metric-value">
-            44,441
+            {catalog_size:,}
         </div>
     </div>
 
@@ -1120,6 +1333,7 @@ if uploaded_file is not None:
         <div class="fv-metric-label">
             Search
         </div>
+
         <div class="fv-metric-value">
             Nearest Neighbor
         </div>
@@ -1129,8 +1343,19 @@ if uploaded_file is not None:
         <div class="fv-metric-label">
             Distance
         </div>
+
         <div class="fv-metric-value">
             Euclidean
+        </div>
+    </div>
+
+    <div class="fv-metric">
+        <div class="fv-metric-label">
+            Mode
+        </div>
+
+        <div class="fv-metric-value">
+            FULL
         </div>
     </div>
 
@@ -1138,14 +1363,16 @@ if uploaded_file is not None:
 """
             )
 
+
         # =================================================
-        # RESULTS
+        # RESULTS HEADER
         # =================================================
 
         st.markdown(
-            "<div style='height:90px'></div>",
+            "<div style='height:95px'></div>",
             unsafe_allow_html=True,
         )
+
 
         render_html(
             f"""
@@ -1158,15 +1385,21 @@ if uploaded_file is not None:
 </div>
 
 <div class="fv-section-description">
-    Ranked from closest to furthest visual embedding match.
+    Lower distance indicates a closer visual embedding match.
 </div>
 """
         )
+
 
         st.markdown(
             "<div style='height:25px'></div>",
             unsafe_allow_html=True,
         )
+
+
+        # =================================================
+        # RESULTS
+        # =================================================
 
         results = list(
             zip(
@@ -1174,6 +1407,7 @@ if uploaded_file is not None:
                 indices,
             )
         )
+
 
         for start in range(
             0,
@@ -1188,10 +1422,12 @@ if uploaded_file is not None:
                 start:start + 5
             ]
 
+
             columns = st.columns(
                 len(row),
                 gap="medium",
             )
+
 
             for position, (
                 column,
@@ -1211,22 +1447,32 @@ if uploaded_file is not None:
                     + 1
                 )
 
+
                 with column:
 
                     render_html(
                         f"""
 <div class="fv-result">
+
     <span class="fv-rank">
         #{rank:02d}
     </span>
+
 </div>
 """
                     )
 
+
+                    image_path = (
+                        img_files_list[index]
+                    )
+
+
                     st.image(
-                        img_files_list[index],
+                        image_path,
                         width=220,
                     )
+
 
                     render_html(
                         f"""
@@ -1236,26 +1482,31 @@ if uploaded_file is not None:
 """
                     )
 
+
         # =================================================
-        # NEW SEARCH BUTTON
+        # START NEW SEARCH
         # =================================================
 
         st.markdown(
-            "<div style='height:60px'></div>",
+            "<div style='height:65px'></div>",
             unsafe_allow_html=True,
         )
 
-        center_left, center, center_right = st.columns(
+
+        _, button_col, _ = st.columns(
             [1, 1, 1]
         )
 
-        with center:
+
+        with button_col:
 
             if st.button(
                 "↻  START NEW SEARCH",
                 use_container_width=True,
             ):
+
                 st.rerun()
+
 
         # =================================================
         # FOOTER
@@ -1266,19 +1517,23 @@ if uploaded_file is not None:
             unsafe_allow_html=True,
         )
 
+
         render_html(
-            """
+            f"""
 <div class="fv-footer">
+
     <div>
         FASHION VISION · CONTENT-BASED RETRIEVAL
     </div>
 
     <div>
-        RESNET50 · 44K+ PRODUCTS · STREAMLIT
+        RESNET50 · {catalog_size:,} PRODUCTS · FULL
     </div>
+
 </div>
 """
         )
+
 
     except Exception as exc:
 
