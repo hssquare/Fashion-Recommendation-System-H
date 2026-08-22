@@ -736,9 +736,7 @@ on 500 evaluation queries using `articleType` as the category-based relevance cr
 
 ## Harshal
 
-GitHub:
 
-https://github.com/hssquare
 
 Repository:
 
