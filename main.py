@@ -896,7 +896,7 @@ def load_feature_database():
 
     features = np.asarray(
         features,
-        dtype=np.float32,
+        dtype=np.float32
     )
 
     if len(features) != len(
@@ -932,6 +932,26 @@ except Exception as exc:
 catalog_size = len(
     features_list
 )
+
+
+# =========================================================
+# NORMALIZE CATALOG PATHS
+# =========================================================
+#
+# IMPORTANT:
+# The PKL file was created on Windows, so paths may look like:
+#
+#     fashion_small\images\6498.jpg
+#
+# Streamlit Cloud runs Linux. Normalize all separators once
+# so the application can correctly extract product IDs.
+#
+# =========================================================
+
+img_files_list = [
+    str(path).replace("\\", "/")
+    for path in img_files_list
+]
 
 
 # =========================================================
@@ -1216,19 +1236,66 @@ def extract_img_features(
 def extract_product_id(
     image_path,
 ):
+    """
+    Extract the product ID safely from both Windows and
+    Linux-style paths.
+
+    Examples:
+
+        fashion_small\\images\\6498.jpg
+        fashion_small/images/6498.jpg
+        C:\\project\\fashion_small\\images\\6498.jpg
+
+    All return:
+
+        6498
+    """
+
+    if image_path is None:
+        return None
 
     try:
 
-        return int(
-            Path(
-                str(image_path)
-            ).stem
+        # -------------------------------------------------
+        # IMPORTANT FIX:
+        # Convert Windows separators to Linux separators.
+        # -------------------------------------------------
+
+        normalized_path = (
+            str(image_path)
+            .replace("\\", "/")
         )
 
-    except (
-        ValueError,
-        TypeError,
-    ):
+        # -------------------------------------------------
+        # Get filename only.
+        # -------------------------------------------------
+
+        filename = (
+            normalized_path
+            .rsplit("/", 1)[-1]
+        )
+
+        # -------------------------------------------------
+        # Remove extension.
+        # -------------------------------------------------
+
+        product_id = Path(
+            filename
+        ).stem
+
+        # -------------------------------------------------
+        # Validate numeric product ID.
+        # -------------------------------------------------
+
+        if product_id.isdigit():
+
+            return int(
+                product_id
+            )
+
+        return None
+
+    except Exception:
 
         return None
 
@@ -1245,7 +1312,6 @@ def get_hf_json(
 
     errors = []
 
-    # Try authentication first when configured.
     headers_to_try = []
 
     if HF_TOKEN:
@@ -1257,7 +1323,6 @@ def get_hf_json(
             )
         )
 
-    # Then public access.
     headers_to_try.append(
         (
             "public",
@@ -1291,7 +1356,6 @@ def get_hf_json(
                     )
 
 
-                # Retry only transient errors.
                 if response.status_code in (
                     429,
                     500,
@@ -1392,7 +1456,6 @@ def check_hf_dataset():
 # FETCH ROW BLOCK
 #
 # One call fetches up to 100 rows.
-# This dramatically reduces the number of HF API requests.
 # =========================================================
 
 @st.cache_data(
@@ -1405,7 +1468,6 @@ def fetch_row_block(
 
     length = HF_BLOCK_SIZE
 
-    # Do not request beyond the dataset.
     if block_start + length > 44239:
 
         length = 44239 - block_start
@@ -1723,10 +1785,6 @@ def resolve_high_res_product(
                     returned_id,
                 )
             ):
-
-                # We don't fail only because the mapping
-                # may not contain hf_product_id.
-                # The actual row is still inspected below.
 
                 pass
 
@@ -2082,6 +2140,11 @@ if uploaded_file is not None:
                 ]
             )
 
+
+            # =================================================
+            # FIXED:
+            # image_path is already normalized above.
+            # =================================================
 
             product_id = (
                 extract_product_id(
