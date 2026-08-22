@@ -746,7 +746,7 @@ https://github.com/hssquare/Fashion-Recommendation-System-H
 
 Live Demo:
 
-https://fashion-recommendation-system-h8w48qvsj6zbbnwyrtmk.streamlit.app/
+https://fashion-recommendation-system-h-ehw48qv8sjx6zbbnwyrtmk.streamlit.app/
 
 ---
 
