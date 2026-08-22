@@ -742,6 +742,8 @@ Repository:
 
 https://github.com/hssquare/Fashion-Recommendation-System-H
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 Live Demo:
 
 https://fashion-recommendation-system-h-ehw48qv8sjx6zbbnwyrtmk.streamlit.app/
@@ -755,3 +757,29 @@ https://huggingface.co/datasets/GangHitman/fashion-recommendation-images
 ---
 
 **Made by Harshal — Fashion Vision v1.0.0**
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+See the [LICENSE](LICENSE) file for details.
+
+> The MIT License applies to the original source code of this project.
+> Third-party datasets, images, pretrained models, and external catalog
+> assets may be subject to their own licenses or terms.
