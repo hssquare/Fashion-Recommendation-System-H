@@ -19,7 +19,7 @@ from tensorflow.keras.models import Sequential
 
 
 # =========================================================
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # =========================================================
 
 st.set_page_config(
@@ -31,25 +31,37 @@ st.set_page_config(
 
 
 # =========================================================
-# PROJECT CONFIGURATION
+# PROJECT CONFIG
 # =========================================================
 
 FEATURES_FILE = "image_features_embedding.pkl"
 IMAGE_FILES_FILE = "img_files.pkl"
 HF_MAPPING_FILE = "huggingface_product_mapping.json"
 
-# Your own Hugging Face dataset
+# YOUR OWN PUBLIC HIGH-RES DATASET
 HF_DATASET = "GangHitman/fashion-recommendation-images"
 HF_CONFIG = "default"
 HF_SPLIT = "train"
-HF_ROWS_API = "https://datasets-server.huggingface.co/rows"
+
+HF_API_BASE = "https://datasets-server.huggingface.co"
+
+HF_ROWS_API = f"{HF_API_BASE}/rows"
+HF_VALID_API = f"{HF_API_BASE}/is-valid"
+HF_FIRST_ROWS_API = f"{HF_API_BASE}/first-rows"
 
 APP_MODE_LABEL = "FULL"
 APP_MODE_DESCRIPTION = "44,441-image retrieval catalog"
 
+# Dataset Viewer permits up to 100 rows per /rows request.
+HF_BLOCK_SIZE = 100
+
+# Number of visual candidates to inspect before
+# resolving high-resolution images.
+EXTRA_CANDIDATES = 25
+
 
 # =========================================================
-# HUGGING FACE AUTHENTICATION
+# HUGGING FACE SECRET
 # =========================================================
 
 try:
@@ -60,22 +72,32 @@ try:
 except Exception:
     HF_TOKEN = ""
 
-HF_HEADERS = {
-    "User-Agent": "FashionVision/1.0"
+
+# Authenticated headers.
+HF_AUTH_HEADERS = {
+    "User-Agent": "FashionVision/1.0",
 }
 
 if HF_TOKEN:
-    HF_HEADERS["Authorization"] = (
+    HF_AUTH_HEADERS["Authorization"] = (
         f"Bearer {HF_TOKEN}"
     )
+
+
+# Public headers.
+# Your duplicated dataset is public, so this gives us
+# a second access path if authentication is unavailable.
+HF_PUBLIC_HEADERS = {
+    "User-Agent": "FashionVision/1.0",
+}
 
 
 # =========================================================
 # HTML HELPER
 # =========================================================
 
-def render_html(html_content):
-    st.html(html_content)
+def html(body):
+    st.html(body)
 
 
 # =========================================================
@@ -127,24 +149,29 @@ header {
 
 
 /* =========================================================
-   NAVIGATION
+   NAV
    ========================================================= */
 
 .fv-nav {
     display: flex;
     align-items: center;
     justify-content: space-between;
+
     padding: 18px 22px;
-    margin-bottom: 75px;
+    margin-bottom: 70px;
+
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 20px;
+
     background:
         linear-gradient(
             135deg,
             rgba(255,255,255,0.055),
             rgba(255,255,255,0.015)
         );
+
     backdrop-filter: blur(24px);
+
     box-shadow:
         0 20px 80px rgba(0,0,0,0.36);
 }
@@ -158,26 +185,34 @@ header {
 .fv-logo {
     width: 42px;
     height: 42px;
+
     display: flex;
     align-items: center;
     justify-content: center;
+
     border-radius: 13px;
+
     background:
         linear-gradient(
             135deg,
             #7d3cff,
             #00d5ff
         );
+
+    color: white;
     font-size: 19px;
     font-weight: 900;
+
     box-shadow:
         0 0 45px rgba(100,60,255,0.38);
 }
 
 .fv-brand-text {
     color: white;
+
     font-size: 15px;
     font-weight: 900;
+
     letter-spacing: 0.15em;
     text-transform: uppercase;
 }
@@ -185,15 +220,22 @@ header {
 .fv-online {
     display: inline-flex;
     align-items: center;
+
     padding: 8px 14px;
+
     border-radius: 999px;
+
     background:
         rgba(0,255,180,0.055);
+
     border:
         1px solid rgba(0,255,180,0.18);
+
     color: #6fffd0;
+
     font-size: 10px;
     font-weight: 900;
+
     letter-spacing: 0.10em;
     text-transform: uppercase;
 }
@@ -201,9 +243,13 @@ header {
 .fv-online-dot {
     width: 7px;
     height: 7px;
+
     margin-right: 7px;
+
     border-radius: 50%;
+
     background: #43ff9d;
+
     box-shadow:
         0 0 14px #43ff9d;
 }
@@ -214,30 +260,42 @@ header {
    ========================================================= */
 
 .fv-hero {
-    padding: 10px 0 90px;
+    padding: 10px 0 85px;
 }
 
 .fv-eyebrow {
     display: inline-flex;
+
     padding: 8px 13px;
+
     border: 1px solid rgba(255,255,255,0.09);
     border-radius: 999px;
+
     background:
         rgba(255,255,255,0.035);
+
     color: #9699aa;
+
     font-size: 10px;
     font-weight: 900;
+
     letter-spacing: 0.17em;
     text-transform: uppercase;
 }
 
 .fv-hero-title {
     margin-top: 25px;
+
     max-width: 1000px;
+
     font-size: clamp(62px, 8vw, 126px);
+
     line-height: 0.86;
+
     font-weight: 950;
+
     letter-spacing: -0.075em;
+
     background:
         linear-gradient(
             100deg,
@@ -247,61 +305,84 @@ header {
             #62e8ff 74%,
             #ff65c7 100%
         );
+
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
 .fv-hero-description {
     max-width: 690px;
+
     margin-top: 30px;
+
     color: #9fa2b1;
+
     font-size: 17px;
+
     line-height: 1.75;
 }
 
 
 /* =========================================================
-   SECTION HEADINGS
+   SECTION
    ========================================================= */
 
 .fv-section-eyebrow {
     color: #888b9c;
+
     font-size: 10px;
     font-weight: 900;
+
     letter-spacing: 0.18em;
+
     text-transform: uppercase;
 }
 
 .fv-section-title {
     margin-top: 9px;
+
     color: #f8f8fd;
+
     font-size: clamp(34px, 4vw, 55px);
+
     line-height: 0.95;
+
     font-weight: 900;
+
     letter-spacing: -0.055em;
 }
 
 .fv-section-description {
     margin-top: 13px;
+
     color: #858897;
+
     font-size: 13px;
+
     line-height: 1.6;
 }
 
 
 /* =========================================================
-   MODE CARD
+   MODE
    ========================================================= */
 
 .fv-mode-card {
     margin-top: 30px;
+
     padding: 15px 18px;
+
     border: 1px solid rgba(255,255,255,0.07);
+
     border-radius: 16px;
+
     background:
         rgba(255,255,255,0.022);
+
     color: #888b9c;
+
     font-size: 11px;
+
     line-height: 1.6;
 }
 
@@ -317,11 +398,16 @@ header {
 
 .fv-upload {
     margin-top: 32px;
+
     padding: 65px 30px;
+
     text-align: center;
+
     border:
         1px dashed rgba(126,88,255,0.62);
+
     border-radius: 30px;
+
     background:
         radial-gradient(
             circle at center,
@@ -329,6 +415,7 @@ header {
             transparent 60%
         ),
         rgba(255,255,255,0.015);
+
     box-shadow:
         inset 0 0 90px rgba(108,65,255,0.025);
 }
@@ -336,37 +423,48 @@ header {
 .fv-upload-icon {
     width: 74px;
     height: 74px;
+
     margin: 0 auto;
+
     display: flex;
     align-items: center;
     justify-content: center;
+
     border-radius: 21px;
+
     background:
         linear-gradient(
             135deg,
             rgba(124,60,255,0.27),
             rgba(0,212,255,0.15)
         );
+
     border:
         1px solid rgba(255,255,255,0.09);
+
     color: white;
+
     font-size: 28px;
-    box-shadow:
-        0 0 55px rgba(106,63,255,0.20);
 }
 
 .fv-upload-title {
     margin-top: 20px;
-    color: #ffffff;
+
+    color: white;
+
     font-size: 25px;
     font-weight: 900;
+
     letter-spacing: -0.03em;
 }
 
 .fv-upload-description {
     margin-top: 10px;
+
     color: #7e8190;
+
     font-size: 13px;
+
     line-height: 1.7;
 }
 
@@ -376,31 +474,12 @@ header {
 
 [data-testid="stFileUploaderDropzone"] {
     border-radius: 18px !important;
+
     border:
         1px solid rgba(255,255,255,0.07) !important;
+
     background:
         rgba(255,255,255,0.025) !important;
-}
-
-[data-testid="stFileUploaderFile"] {
-    border-radius: 12px !important;
-    background:
-        rgba(255,255,255,0.035) !important;
-    border:
-        1px solid rgba(255,255,255,0.07) !important;
-}
-
-
-/* =========================================================
-   SELECT
-   ========================================================= */
-
-[data-testid="stSelectbox"] label {
-    color: #898c9d !important;
-    font-size: 10px !important;
-    font-weight: 900 !important;
-    letter-spacing: 0.15em !important;
-    text-transform: uppercase !important;
 }
 
 
@@ -410,31 +489,41 @@ header {
 
 .fv-analysis {
     padding: 28px;
+
     border:
         1px solid rgba(255,255,255,0.075);
+
     border-radius: 24px;
+
     background:
         linear-gradient(
             145deg,
             rgba(255,255,255,0.045),
             rgba(255,255,255,0.012)
         );
+
     backdrop-filter: blur(18px);
 }
 
 .fv-analysis-label {
     color: #898b9c;
+
     font-size: 10px;
     font-weight: 900;
+
     letter-spacing: 0.16em;
+
     text-transform: uppercase;
 }
 
 .fv-analysis-title {
     margin-top: 9px;
+
     color: white;
+
     font-size: 30px;
     font-weight: 900;
+
     letter-spacing: -0.04em;
 }
 
@@ -442,7 +531,9 @@ header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+
     padding: 15px 0;
+
     border-bottom:
         1px solid rgba(255,255,255,0.055);
 }
@@ -465,13 +556,19 @@ header {
 
 .fv-status {
     padding: 17px 20px;
+
     border:
         1px solid rgba(255,255,255,0.07);
+
     border-radius: 16px;
+
     background:
         rgba(255,255,255,0.025);
+
     color: #aeb0bf;
+
     font-size: 13px;
+
     line-height: 1.65;
 }
 
@@ -481,21 +578,26 @@ header {
 
 
 /* =========================================================
-   RESULT CARDS
+   RESULTS
    ========================================================= */
 
 [data-testid="stImage"] img {
     border-radius: 20px;
+
     box-shadow:
         0 25px 80px rgba(0,0,0,0.35);
+
     object-fit: contain;
 }
 
 .fv-result {
     padding: 10px;
+
     border:
         1px solid rgba(255,255,255,0.07);
+
     border-radius: 20px;
+
     background:
         linear-gradient(
             145deg,
@@ -506,57 +608,104 @@ header {
 
 .fv-rank {
     display: inline-flex;
+
     padding: 7px 10px;
+
     border-radius: 999px;
+
     background:
         rgba(8,9,13,0.78);
+
     border:
         1px solid rgba(255,255,255,0.11);
+
     color: white;
+
     font-size: 10px;
     font-weight: 900;
 }
 
 .fv-distance {
     display: inline-block;
+
     margin-top: 10px;
+
     padding: 6px 10px;
+
     border-radius: 999px;
+
     background:
         rgba(124,60,255,0.09);
+
     border:
         1px solid rgba(124,60,255,0.18);
+
     color: #b3a5ff;
+
     font-size: 10px;
     font-weight: 900;
 }
 
 .fv-resolution {
     display: inline-block;
+
     margin-top: 7px;
+
     color: #6fffd0;
+
     font-size: 9px;
     font-weight: 800;
+
     letter-spacing: 0.08em;
+
     text-transform: uppercase;
+}
+
+.fv-info {
+    margin-top: 12px;
+
+    padding: 12px 14px;
+
+    border-radius: 14px;
+
+    border:
+        1px solid rgba(255,255,255,0.07);
+
+    background:
+        rgba(255,255,255,0.025);
+
+    color: #888b9c;
+
+    font-size: 11px;
+
+    line-height: 1.6;
 }
 
 
 /* =========================================================
-   INFO
+   DEBUG
    ========================================================= */
 
-.fv-info {
+.fv-debug {
     margin-top: 12px;
-    padding: 12px 14px;
-    border-radius: 14px;
+
+    padding: 14px 16px;
+
     border:
-        1px solid rgba(255,255,255,0.07);
+        1px solid rgba(255,95,95,0.18);
+
+    border-radius: 14px;
+
     background:
-        rgba(255,255,255,0.025);
-    color: #888b9c;
+        rgba(255,70,70,0.05);
+
+    color: #ff9999;
+
     font-size: 11px;
+
     line-height: 1.6;
+
+    word-break: break-word;
 }
 
 
@@ -566,16 +715,21 @@ header {
 
 .stButton > button {
     min-height: 48px;
+
     border-radius: 14px !important;
+
     border:
         1px solid rgba(255,255,255,0.10) !important;
+
     background:
         linear-gradient(
             135deg,
             rgba(124,60,255,0.22),
             rgba(0,212,255,0.10)
         ) !important;
-    color: #ffffff !important;
+
+    color: white !important;
+
     font-weight: 800 !important;
 }
 
@@ -586,21 +740,29 @@ header {
 
 .fv-footer {
     display: flex;
+
     justify-content: space-between;
+
     margin-top: 110px;
+
     padding-top: 26px;
+
     border-top:
         1px solid rgba(255,255,255,0.06);
+
     color: #646776;
+
     font-size: 10px;
     font-weight: 800;
+
     letter-spacing: 0.10em;
+
     text-transform: uppercase;
 }
 
 
 /* =========================================================
-   RESPONSIVE
+   MOBILE
    ========================================================= */
 
 @media (max-width: 900px) {
@@ -622,6 +784,7 @@ header {
         flex-direction: column;
         gap: 10px;
     }
+
 }
 
 </style>
@@ -634,7 +797,7 @@ header {
 # NAVIGATION
 # =========================================================
 
-render_html(
+html(
     """
 <div class="fv-nav">
 
@@ -651,8 +814,11 @@ render_html(
     </div>
 
     <div class="fv-online">
+
         <span class="fv-online-dot"></span>
+
         AI Online
+
     </div>
 
 </div>
@@ -664,7 +830,7 @@ render_html(
 # HERO
 # =========================================================
 
-render_html(
+html(
     """
 <div class="fv-hero">
 
@@ -690,22 +856,42 @@ render_html(
 
 
 # =========================================================
-# LOAD FEATURE DATABASE
+# FEATURE DATABASE
 # =========================================================
 
 @st.cache_data
 def load_feature_database():
 
+    feature_path = Path(
+        FEATURES_FILE
+    )
+
+    image_path = Path(
+        IMAGE_FILES_FILE
+    )
+
+    if not feature_path.exists():
+        raise FileNotFoundError(
+            f"Missing {FEATURES_FILE}"
+        )
+
+    if not image_path.exists():
+        raise FileNotFoundError(
+            f"Missing {IMAGE_FILES_FILE}"
+        )
+
     with open(
-        FEATURES_FILE,
+        feature_path,
         "rb",
     ) as file:
+
         features = pickle.load(file)
 
     with open(
-        IMAGE_FILES_FILE,
+        image_path,
         "rb",
     ) as file:
+
         image_files = pickle.load(file)
 
     features = np.asarray(
@@ -713,13 +899,19 @@ def load_feature_database():
         dtype=np.float32,
     )
 
-    if len(features) != len(image_files):
+    if len(features) != len(
+        image_files
+    ):
+
         raise ValueError(
-            "The number of embeddings does not match "
-            "the number of image paths."
+            "Embedding count does not match "
+            "image-path count."
         )
 
-    return features, image_files
+    return (
+        features,
+        image_files,
+    )
 
 
 try:
@@ -731,49 +923,69 @@ try:
 except Exception as exc:
 
     st.error(
-        f"Could not load the feature database: {exc}"
+        f"Could not load feature database: {exc}"
     )
 
     st.stop()
 
 
-catalog_size = len(features_list)
+catalog_size = len(
+    features_list
+)
 
 
 # =========================================================
-# LOAD HIGH-RESOLUTION MAPPING
+# HIGH-RES MAPPING
 # =========================================================
 
 @st.cache_data
 def load_hf_mapping():
 
-    mapping_path = Path(
+    path = Path(
         HF_MAPPING_FILE
     )
 
-    if not mapping_path.exists():
-        return {}
+    if not path.exists():
 
-    try:
+        raise FileNotFoundError(
+            f"Missing {HF_MAPPING_FILE}"
+        )
 
-        with open(
-            mapping_path,
-            "r",
-            encoding="utf-8",
-        ) as file:
+    with open(
+        path,
+        "r",
+        encoding="utf-8",
+    ) as file:
 
-            return json.load(file)
+        mapping = json.load(file)
 
-    except Exception:
+    if not isinstance(
+        mapping,
+        dict,
+    ):
 
-        return {}
+        raise ValueError(
+            "HF mapping is not a JSON object."
+        )
+
+    return mapping
 
 
-hf_mapping = load_hf_mapping()
+try:
+
+    hf_mapping = load_hf_mapping()
+
+except Exception as exc:
+
+    st.error(
+        f"Could not load high-resolution mapping: {exc}"
+    )
+
+    st.stop()
 
 
 # =========================================================
-# LOAD RESNET50
+# RESNET50
 # =========================================================
 
 @st.cache_resource
@@ -809,7 +1021,7 @@ except Exception as exc:
 
 
 # =========================================================
-# QUERY HEADER
+# QUERY CONTROLS
 # =========================================================
 
 query_col, control_col = st.columns(
@@ -817,9 +1029,10 @@ query_col, control_col = st.columns(
     gap="large",
 )
 
+
 with query_col:
 
-    render_html(
+    html(
         """
 <div class="fv-section-eyebrow">
     01 · QUERY
@@ -836,6 +1049,7 @@ with query_col:
 """
     )
 
+
 with control_col:
 
     top_k = st.selectbox(
@@ -846,10 +1060,10 @@ with control_col:
 
 
 # =========================================================
-# MODE CARD
+# MODE INFO
 # =========================================================
 
-render_html(
+html(
     f"""
 <div class="fv-mode-card">
 
@@ -885,10 +1099,10 @@ render_html(
 
 
 # =========================================================
-# UPLOAD AREA
+# UPLOAD UI
 # =========================================================
 
-render_html(
+html(
     """
 <div class="fv-upload">
 
@@ -924,44 +1138,47 @@ uploaded_file = st.file_uploader(
 
 
 # =========================================================
-# NEAREST NEIGHBOR INDEX
+# NEAREST NEIGHBOR
 # =========================================================
 
 neighbors = NearestNeighbors(
     n_neighbors=min(
-        50,
+        100,
         catalog_size,
     ),
     algorithm="brute",
     metric="euclidean",
 )
 
-neighbors.fit(features_list)
+neighbors.fit(
+    features_list
+)
 
 
 # =========================================================
-# FEATURE EXTRACTION
+# IMAGE FEATURE EXTRACTION
 # =========================================================
 
 def extract_img_features(
-    img,
-    model,
+    image,
 ):
 
-    img = img.convert("RGB")
+    image = image.convert(
+        "RGB"
+    )
 
-    img = img.resize(
+    image = image.resize(
         (224, 224),
         Image.Resampling.LANCZOS,
     )
 
-    image_array = np.asarray(
-        img,
+    array = np.asarray(
+        image,
         dtype=np.float32,
     )
 
     batch = np.expand_dims(
-        image_array,
+        array,
         axis=0,
     )
 
@@ -974,23 +1191,26 @@ def extract_img_features(
         verbose=0,
     )
 
-    feature_vector = result.flatten()
+    vector = result.flatten()
 
-    feature_norm = norm(
-        feature_vector
+    vector_norm = norm(
+        vector
     )
 
-    if feature_norm == 0:
-        return feature_vector
+    if vector_norm == 0:
+
+        raise ValueError(
+            "Generated embedding has zero norm."
+        )
 
     return (
-        feature_vector
-        / feature_norm
+        vector
+        / vector_norm
     )
 
 
 # =========================================================
-# PRODUCT ID
+# PRODUCT ID FROM LOCAL FILENAME
 # =========================================================
 
 def extract_product_id(
@@ -1014,211 +1234,548 @@ def extract_product_id(
 
 
 # =========================================================
-# HUGGING FACE REQUEST
+# GENERIC REQUEST
 # =========================================================
 
-def request_rows(
-    row_index,
-    retries=4,
+def get_hf_json(
+    url,
+    params,
+    timeout=60,
 ):
 
-    params = {
-        "dataset": HF_DATASET,
-        "config": HF_CONFIG,
-        "split": HF_SPLIT,
-        "offset": int(row_index),
-        "length": 1,
-    }
+    errors = []
 
-    for attempt in range(
-        retries + 1
+    # Try authentication first when configured.
+    headers_to_try = []
+
+    if HF_TOKEN:
+
+        headers_to_try.append(
+            (
+                "authenticated",
+                HF_AUTH_HEADERS,
+            )
+        )
+
+    # Then public access.
+    headers_to_try.append(
+        (
+            "public",
+            HF_PUBLIC_HEADERS,
+        )
+    )
+
+
+    for header_name, headers in (
+        headers_to_try
     ):
 
-        try:
+        for attempt in range(3):
 
-            response = requests.get(
-                HF_ROWS_API,
-                params=params,
-                headers=HF_HEADERS,
-                timeout=45,
-            )
+            try:
 
-            if response.status_code == 429:
-
-                retry_after = response.headers.get(
-                    "Retry-After"
+                response = requests.get(
+                    url,
+                    params=params,
+                    headers=headers,
+                    timeout=timeout,
                 )
 
-                if retry_after:
 
-                    try:
-                        delay = float(
-                            retry_after
-                        )
-                    except ValueError:
-                        delay = 2.0
+                if response.ok:
 
-                else:
-
-                    delay = (
-                        2.0
-                        * (
-                            2 ** attempt
-                        )
+                    return (
+                        response.json(),
+                        None,
+                        header_name,
                     )
 
-                if attempt < retries:
+
+                # Retry only transient errors.
+                if response.status_code in (
+                    429,
+                    500,
+                    502,
+                    503,
+                    504,
+                ):
 
                     time.sleep(
                         min(
-                            delay,
-                            15.0,
+                            2 ** attempt,
+                            8,
                         )
                     )
 
                     continue
 
-                return None
 
-
-            if (
-                response.status_code >= 500
-                and attempt < retries
-            ):
-
-                time.sleep(
-                    min(
-                        2.0
-                        * (
-                            2 ** attempt
-                        ),
-                        12.0,
+                errors.append(
+                    (
+                        f"{header_name}: "
+                        f"HTTP {response.status_code}: "
+                        f"{response.text[:500]}"
                     )
                 )
 
-                continue
+                break
 
 
-            if not response.ok:
-                return None
+            except requests.RequestException as exc:
 
-            response.raise_for_status()
-
-            return response.json()
-
-        except requests.RequestException:
-
-            if attempt < retries:
-
-                time.sleep(
-                    min(
-                        2.0
-                        * (
-                            2 ** attempt
-                        ),
-                        12.0,
+                errors.append(
+                    (
+                        f"{header_name}: "
+                        f"{type(exc).__name__}: "
+                        f"{exc}"
                     )
                 )
 
-                continue
+                if attempt < 2:
 
-            return None
+                    time.sleep(
+                        min(
+                            2 ** attempt,
+                            8,
+                        )
+                    )
 
-    return None
+
+    return (
+        None,
+        " | ".join(errors),
+        None,
+    )
 
 
 # =========================================================
-# HIGH-RES IMAGE
+# HUGGING FACE DATASET PREFLIGHT
+# =========================================================
+
+@st.cache_data(
+    ttl=300,
+    show_spinner=False,
+)
+def check_hf_dataset():
+
+    params = {
+        "dataset": HF_DATASET,
+    }
+
+    (
+        data,
+        error,
+        auth_mode,
+    ) = get_hf_json(
+        HF_VALID_API,
+        params,
+    )
+
+    if data is not None:
+
+        return {
+            "ok": True,
+            "data": data,
+            "error": None,
+            "auth_mode": auth_mode,
+        }
+
+    return {
+        "ok": False,
+        "data": None,
+        "error": error,
+        "auth_mode": None,
+    }
+
+
+# =========================================================
+# FETCH ROW BLOCK
+#
+# One call fetches up to 100 rows.
+# This dramatically reduces the number of HF API requests.
 # =========================================================
 
 @st.cache_data(
     ttl=3600,
     show_spinner=False,
 )
-def fetch_high_res_image(
+def fetch_row_block(
+    block_start,
+):
+
+    length = HF_BLOCK_SIZE
+
+    # Do not request beyond the dataset.
+    if block_start + length > 44239:
+
+        length = 44239 - block_start
+
+    if length <= 0:
+
+        return {
+            "ok": False,
+            "rows": {},
+            "error": "Invalid row block.",
+            "auth_mode": None,
+        }
+
+
+    params = {
+        "dataset": HF_DATASET,
+        "config": HF_CONFIG,
+        "split": HF_SPLIT,
+        "offset": int(block_start),
+        "length": int(length),
+    }
+
+
+    (
+        data,
+        error,
+        auth_mode,
+    ) = get_hf_json(
+        HF_ROWS_API,
+        params,
+    )
+
+
+    if data is None:
+
+        return {
+            "ok": False,
+            "rows": {},
+            "error": error,
+            "auth_mode": None,
+        }
+
+
+    rows = {}
+
+    for item in data.get(
+        "rows",
+        [],
+    ):
+
+        row_index = item.get(
+            "row_idx"
+        )
+
+        row_data = item.get(
+            "row"
+        )
+
+
+        if (
+            row_index is not None
+            and isinstance(
+                row_data,
+                dict,
+            )
+        ):
+
+            rows[int(row_index)] = (
+                row_data
+            )
+
+
+    return {
+        "ok": True,
+        "rows": rows,
+        "error": None,
+        "auth_mode": auth_mode,
+    }
+
+
+# =========================================================
+# DOWNLOAD HIGH-RES IMAGE
+# =========================================================
+
+@st.cache_data(
+    ttl=1800,
+    show_spinner=False,
+)
+def download_high_res_image(
+    image_url,
+):
+
+    if not image_url:
+
+        return {
+            "ok": False,
+            "bytes": None,
+            "error": "Image URL is empty.",
+        }
+
+
+    headers_to_try = []
+
+    if HF_TOKEN:
+
+        headers_to_try.append(
+            HF_AUTH_HEADERS
+        )
+
+    headers_to_try.append(
+        HF_PUBLIC_HEADERS
+    )
+
+
+    errors = []
+
+
+    for headers in headers_to_try:
+
+        for attempt in range(3):
+
+            try:
+
+                response = requests.get(
+                    image_url,
+                    headers=headers,
+                    timeout=60,
+                )
+
+
+                if response.ok:
+
+                    return {
+                        "ok": True,
+                        "bytes": response.content,
+                        "error": None,
+                    }
+
+
+                if response.status_code in (
+                    429,
+                    500,
+                    502,
+                    503,
+                    504,
+                ):
+
+                    time.sleep(
+                        min(
+                            2 ** attempt,
+                            8,
+                        )
+                    )
+
+                    continue
+
+
+                errors.append(
+                    f"HTTP {response.status_code}"
+                )
+
+                break
+
+
+            except requests.RequestException as exc:
+
+                errors.append(
+                    f"{type(exc).__name__}: {exc}"
+                )
+
+                if attempt < 2:
+
+                    time.sleep(
+                        min(
+                            2 ** attempt,
+                            8,
+                        )
+                    )
+
+
+    return {
+        "ok": False,
+        "bytes": None,
+        "error": " | ".join(errors),
+    }
+
+
+# =========================================================
+# HIGH-RES PRODUCT RESOLUTION
+# =========================================================
+
+def resolve_high_res_product(
     product_id,
 ):
 
     if product_id is None:
-        return None, None, None
 
-    product_info = hf_mapping.get(
+        return {
+            "ok": False,
+            "error": "No local product ID.",
+        }
+
+
+    mapping = hf_mapping.get(
         str(product_id)
     )
 
-    if product_info is None:
-        return None, None, None
 
-    row_index = product_info.get(
+    if mapping is None:
+
+        return {
+            "ok": False,
+            "error": (
+                f"Product {product_id} "
+                "is not present in HF mapping."
+            ),
+        }
+
+
+    row_index = mapping.get(
         "hf_row_index"
     )
 
-    if row_index is None:
-        return None, None, None
 
-    data = request_rows(
+    if row_index is None:
+
+        return {
+            "ok": False,
+            "error": (
+                f"Product {product_id} "
+                "has no hf_row_index."
+            ),
+        }
+
+
+    try:
+
+        row_index = int(
+            row_index
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+
+        return {
+            "ok": False,
+            "error": (
+                f"Invalid row index for "
+                f"product {product_id}."
+            ),
+        }
+
+
+    block_start = (
+        row_index
+        // HF_BLOCK_SIZE
+    ) * HF_BLOCK_SIZE
+
+
+    block = fetch_row_block(
+        block_start
+    )
+
+
+    if not block["ok"]:
+
+        return {
+            "ok": False,
+            "error": (
+                f"Dataset Viewer request failed "
+                f"for row {row_index}: "
+                f"{block['error']}"
+            ),
+        }
+
+
+    row = block[
+        "rows"
+    ].get(
         row_index
     )
 
-    if not data:
-        return None, None, None
 
-    rows = data.get(
-        "rows",
-        [],
-    )
+    if row is None:
 
-    if not rows:
-        return None, None, None
+        return {
+            "ok": False,
+            "error": (
+                f"Row {row_index} was not returned "
+                "by Hugging Face."
+            ),
+        }
 
-    row = rows[0].get(
-        "row",
-        {},
-    )
 
-    # Verify the row belongs to requested product.
-    returned_product_id = row.get(
+    # -----------------------------------------------------
+    # Verify dataset product ID.
+    # -----------------------------------------------------
+
+    returned_id = row.get(
         "id"
     )
 
-    if returned_product_id is not None:
+
+    if returned_id is not None:
 
         try:
 
             if int(
-                returned_product_id
+                returned_id
             ) != int(
-                product_id
+                mapping.get(
+                    "hf_product_id",
+                    returned_id,
+                )
             ):
 
-                return None, None, None
+                # We don't fail only because the mapping
+                # may not contain hf_product_id.
+                # The actual row is still inspected below.
+
+                pass
 
         except (
             ValueError,
             TypeError,
         ):
 
-            return None, None, None
+            pass
 
+
+    # -----------------------------------------------------
+    # Extract image.
+    # -----------------------------------------------------
 
     image_data = row.get(
         "image"
     )
+
 
     if not isinstance(
         image_data,
         dict,
     ):
 
-        return None, None, None
+        return {
+            "ok": False,
+            "error": (
+                f"Product {product_id} row "
+                "does not contain an image object."
+            ),
+        }
 
 
-    image_url = image_data.get(
-        "src"
+    image_url = (
+        image_data.get("src")
+        or image_data.get("url")
     )
 
+
     if not image_url:
-        return None, None, None
+
+        return {
+            "ok": False,
+            "error": (
+                f"Product {product_id} "
+                "has no image.src URL."
+            ),
+        }
 
 
     width = image_data.get(
@@ -1230,68 +1787,78 @@ def fetch_high_res_image(
     )
 
 
-    try:
+    # -----------------------------------------------------
+    # Download actual image.
+    # -----------------------------------------------------
 
-        image_response = requests.get(
-            image_url,
-            headers=HF_HEADERS,
-            timeout=45,
+    image_result = (
+        download_high_res_image(
+            image_url
         )
-
-        image_response.raise_for_status()
-
-        return (
-            image_response.content,
-            width,
-            height,
-        )
-
-    except requests.RequestException:
-
-        return None, None, None
-
-
-# =========================================================
-# RESOLVE RECOMMENDATION
-# =========================================================
-
-def resolve_recommendation(
-    image_path,
-):
-
-    product_id = extract_product_id(
-        image_path
     )
 
-    (
-        image_bytes,
-        width,
-        height,
-    ) = fetch_high_res_image(
-        product_id
-    )
 
-    if image_bytes is None:
+    if not image_result["ok"]:
 
         return {
-            "available": False,
-            "product_id": product_id,
-            "image": None,
-            "width": None,
-            "height": None,
+            "ok": False,
+            "error": (
+                f"Product {product_id} image "
+                f"download failed: "
+                f"{image_result['error']}"
+            ),
         }
 
+
     return {
-        "available": True,
-        "product_id": product_id,
-        "image": image_bytes,
+        "ok": True,
+        "image": image_result["bytes"],
         "width": width,
         "height": height,
+        "row_index": row_index,
+        "hf_product_id": returned_id,
+        "image_url": image_url,
     }
 
 
 # =========================================================
-# APPLICATION
+# LOCAL RETRIEVAL
+# =========================================================
+
+def retrieve_candidates(
+    query_vector,
+    count,
+):
+
+    count = min(
+        count,
+        catalog_size,
+    )
+
+
+    distances, indices = (
+        neighbors.kneighbors(
+            [query_vector],
+            n_neighbors=count,
+        )
+    )
+
+
+    return [
+        {
+            "distance": float(distance),
+            "index": int(index),
+        }
+
+        for distance, index in zip(
+            distances[0],
+            indices[0],
+        )
+    ]
+
+
+# =========================================================
+# MAIN PROCESSING
 # =========================================================
 
 if uploaded_file is not None:
@@ -1312,11 +1879,12 @@ if uploaded_file is not None:
         # =================================================
 
         st.markdown(
-            "<div style='height:90px'></div>",
+            "<div style='height:85px'></div>",
             unsafe_allow_html=True,
         )
 
-        render_html(
+
+        html(
             """
 <div class="fv-section-eyebrow">
     02 · AI ANALYSIS
@@ -1328,31 +1896,31 @@ if uploaded_file is not None:
 
 <div class="fv-section-description">
     Your image is converted into a deep visual embedding
-    and searched against the full fashion catalog.
+    and searched against the selected catalog.
 </div>
 """
         )
 
+
         st.markdown(
-            "<div style='height:25px'></div>",
+            "<div style='height:24px'></div>",
             unsafe_allow_html=True,
         )
 
 
         # =================================================
-        # STATUS
+        # TEMPORARY STATUS
         # =================================================
 
         status_box = st.empty()
 
+
         status_box.html(
             """
 <div class="fv-status">
-
     <strong>01</strong>
     &nbsp;&nbsp;
     Reading image...
-
 </div>
 """
         )
@@ -1362,9 +1930,10 @@ if uploaded_file is not None:
         # EMBEDDING
         # =================================================
 
-        features = extract_img_features(
-            query_image,
-            model,
+        query_vector = (
+            extract_img_features(
+                query_image
+            )
         )
 
 
@@ -1378,9 +1947,9 @@ if uploaded_file is not None:
 
     <br><br>
 
-    <strong>02</strong>
+    <strong>02 ✓</strong>
     &nbsp;&nbsp;
-    ResNet50 embedding generated...
+    ResNet50 embedding generated
 
 </div>
 """
@@ -1388,23 +1957,21 @@ if uploaded_file is not None:
 
 
         # =================================================
-        # RETRIEVAL
+        # LOCAL RETRIEVAL
         # =================================================
 
         candidate_count = min(
             max(
-                top_k + 15,
-                top_k * 4,
+                top_k + EXTRA_CANDIDATES,
+                top_k * 5,
             ),
             catalog_size,
         )
 
 
-        distances, indices = (
-            neighbors.kneighbors(
-                [features],
-                n_neighbors=candidate_count,
-            )
+        candidates = retrieve_candidates(
+            query_vector,
+            candidate_count,
         )
 
 
@@ -1432,7 +1999,7 @@ if uploaded_file is not None:
 
     <strong>04</strong>
     &nbsp;&nbsp;
-    Resolving high-resolution images...
+    Checking high-resolution catalog...
 
 </div>
 """
@@ -1440,69 +2007,179 @@ if uploaded_file is not None:
 
 
         # =================================================
+        # HUGGING FACE PREFLIGHT
+        # =================================================
+
+        hf_status = (
+            check_hf_dataset()
+        )
+
+
+        if not hf_status["ok"]:
+
+            status_box.empty()
+
+
+            st.error(
+                "The visual retrieval model is working, "
+                "but the Hugging Face Dataset Viewer "
+                "is currently unavailable."
+            )
+
+
+            html(
+                f"""
+<div class="fv-debug">
+
+    <strong>Hugging Face diagnostic</strong>
+
+    <br><br>
+
+    Dataset:
+    {HF_DATASET}
+
+    <br>
+
+    Config:
+    {HF_CONFIG}
+
+    <br>
+
+    Split:
+    {HF_SPLIT}
+
+    <br><br>
+
+    {hf_status["error"]}
+
+</div>
+"""
+            )
+
+            st.stop()
+
+
+        # =================================================
         # RESOLVE HIGH-RES RESULTS
         # =================================================
 
-        resolved_results = []
-        failed_products = 0
+        results = []
+
+        failed = []
+
+        blocks_loaded = set()
 
 
-        for distance, index in zip(
-            distances[0],
-            indices[0],
-        ):
+        for candidate in candidates:
+
+            local_index = candidate[
+                "index"
+            ]
 
             image_path = (
                 img_files_list[
-                    int(index)
+                    local_index
                 ]
             )
 
-            resolved = resolve_recommendation(
-                image_path
+
+            product_id = (
+                extract_product_id(
+                    image_path
+                )
             )
 
-            if not resolved["available"]:
 
-                failed_products += 1
+            if product_id is None:
+
+                failed.append(
+                    {
+                        "product_id": None,
+                        "error": (
+                            f"Could not extract "
+                            f"product ID from "
+                            f"{image_path}"
+                        ),
+                    }
+                )
+
                 continue
 
 
-            resolved_results.append(
+            # Load/cache the required block.
+            mapping = hf_mapping.get(
+                str(product_id)
+            )
+
+
+            if mapping:
+
+                row_idx = mapping.get(
+                    "hf_row_index"
+                )
+
+                if row_idx is not None:
+
+                    block_start = (
+                        int(row_idx)
+                        // HF_BLOCK_SIZE
+                    ) * HF_BLOCK_SIZE
+
+                    if (
+                        block_start
+                        not in blocks_loaded
+                    ):
+
+                        blocks_loaded.add(
+                            block_start
+                        )
+
+
+            resolved = (
+                resolve_high_res_product(
+                    product_id
+                )
+            )
+
+
+            if not resolved["ok"]:
+
+                failed.append(
+                    {
+                        "product_id": product_id,
+                        "error": resolved[
+                            "error"
+                        ],
+                    }
+                )
+
+                continue
+
+
+            results.append(
                 {
-                    "distance": float(
-                        distance
-                    ),
-                    "index": int(
-                        index
-                    ),
-                    "product_id": (
-                        resolved[
-                            "product_id"
-                        ]
-                    ),
-                    "image": (
-                        resolved[
-                            "image"
-                        ]
-                    ),
-                    "width": (
-                        resolved[
-                            "width"
-                        ]
-                    ),
-                    "height": (
-                        resolved[
-                            "height"
-                        ]
-                    ),
+                    "distance": candidate[
+                        "distance"
+                    ],
+                    "local_index": local_index,
+                    "product_id": product_id,
+                    "image": resolved[
+                        "image"
+                    ],
+                    "width": resolved[
+                        "width"
+                    ],
+                    "height": resolved[
+                        "height"
+                    ],
+                    "row_index": resolved[
+                        "row_index"
+                    ],
                 }
             )
 
 
-            if len(
-                resolved_results
-            ) >= top_k:
+            if len(results) >= top_k:
 
                 break
 
@@ -1511,11 +2188,64 @@ if uploaded_file is not None:
 
 
         # =================================================
-        # QUERY + ANALYSIS
+        # IF NOTHING RESOLVED
+        # =================================================
+
+        if not results:
+
+            st.error(
+                "The 44,441-image retrieval engine "
+                "worked, but no high-resolution images "
+                "could be resolved."
+            )
+
+
+            if failed:
+
+                first_error = failed[0]
+
+                html(
+                    f"""
+<div class="fv-debug">
+
+    <strong>First high-resolution lookup failure</strong>
+
+    <br><br>
+
+    Product:
+    {first_error["product_id"]}
+
+    <br><br>
+
+    {first_error["error"]}
+
+</div>
+"""
+                )
+
+
+                with st.expander(
+                    "Show all lookup failures"
+                ):
+
+                    for failure in failed[:20]:
+
+                        st.code(
+                            str(
+                                failure
+                            )
+                        )
+
+
+            st.stop()
+
+
+        # =================================================
+        # QUERY + PIPELINE
         # =================================================
 
         st.markdown(
-            "<div style='height:35px'></div>",
+            "<div style='height:30px'></div>",
             unsafe_allow_html=True,
         )
 
@@ -1536,7 +2266,7 @@ if uploaded_file is not None:
 
         with analysis_col:
 
-            render_html(
+            html(
                 f"""
 <div class="fv-analysis">
 
@@ -1549,6 +2279,7 @@ if uploaded_file is not None:
     </div>
 
     <div class="fv-metric">
+
         <div class="fv-metric-label">
             Backbone
         </div>
@@ -1556,9 +2287,11 @@ if uploaded_file is not None:
         <div class="fv-metric-value">
             ResNet50
         </div>
+
     </div>
 
     <div class="fv-metric">
+
         <div class="fv-metric-label">
             Pooling
         </div>
@@ -1566,9 +2299,11 @@ if uploaded_file is not None:
         <div class="fv-metric-value">
             Global Max
         </div>
+
     </div>
 
     <div class="fv-metric">
+
         <div class="fv-metric-label">
             Retrieval Catalog
         </div>
@@ -1576,9 +2311,11 @@ if uploaded_file is not None:
         <div class="fv-metric-value">
             {catalog_size:,}
         </div>
+
     </div>
 
     <div class="fv-metric">
+
         <div class="fv-metric-label">
             Search
         </div>
@@ -1586,9 +2323,11 @@ if uploaded_file is not None:
         <div class="fv-metric-value">
             Nearest Neighbor
         </div>
+
     </div>
 
     <div class="fv-metric">
+
         <div class="fv-metric-label">
             Distance
         </div>
@@ -1596,9 +2335,11 @@ if uploaded_file is not None:
         <div class="fv-metric-value">
             Euclidean
         </div>
+
     </div>
 
     <div class="fv-metric">
+
         <div class="fv-metric-label">
             High-Res Catalog
         </div>
@@ -1606,6 +2347,7 @@ if uploaded_file is not None:
         <div class="fv-metric-value">
             {len(hf_mapping):,}
         </div>
+
     </div>
 
 </div>
@@ -1618,27 +2360,29 @@ if uploaded_file is not None:
         # =================================================
 
         st.markdown(
-            "<div style='height:95px'></div>",
+            "<div style='height:85px'></div>",
             unsafe_allow_html=True,
         )
 
-        render_html(
+
+        html(
             f"""
 <div class="fv-section-eyebrow">
     03 · RESULTS
 </div>
 
 <div class="fv-section-title">
-    Top {top_k} visual matches.
+    Top {len(results)} visual matches.
 </div>
 
 <div class="fv-section-description">
-    Results are ranked by the original 44,441-image
-    retrieval system and displayed using the
-    high-resolution catalog.
+    Ranking comes from the original 44,441-image
+    retrieval system. Images are displayed from
+    your high-resolution Hugging Face catalog.
 </div>
 """
         )
+
 
         st.markdown(
             "<div style='height:25px'></div>",
@@ -1647,64 +2391,47 @@ if uploaded_file is not None:
 
 
         # =================================================
-        # RESULTS GRID
+        # RESULT GRID
         # =================================================
 
-        if not resolved_results:
+        for start in range(
+            0,
+            len(results),
+            5,
+        ):
 
-            st.error(
-                "The retrieval engine found candidates, "
-                "but no high-resolution catalog images "
-                "could be loaded right now."
+            row = results[
+                start:start + 5
+            ]
+
+
+            columns = st.columns(
+                len(row),
+                gap="medium",
             )
 
-            if failed_products > 0:
 
-                st.caption(
-                    f"{failed_products} candidate products "
-                    "could not be resolved."
+            for position, (
+                column,
+                result,
+            ) in enumerate(
+                zip(
+                    columns,
+                    row,
                 )
-
-
-        else:
-
-            for start in range(
-                0,
-                len(resolved_results),
-                5,
             ):
 
-                row = resolved_results[
-                    start:start + 5
-                ]
-
-                columns = st.columns(
-                    len(row),
-                    gap="medium",
+                rank = (
+                    start
+                    + position
+                    + 1
                 )
 
 
-                for position, (
-                    column,
-                    result,
-                ) in enumerate(
-                    zip(
-                        columns,
-                        row,
-                    )
-                ):
+                with column:
 
-                    rank = (
-                        start
-                        + position
-                        + 1
-                    )
-
-
-                    with column:
-
-                        render_html(
-                            f"""
+                    html(
+                        f"""
 <div class="fv-result">
 
     <span class="fv-rank">
@@ -1713,17 +2440,17 @@ if uploaded_file is not None:
 
 </div>
 """
-                        )
+                    )
 
 
-                        st.image(
-                            result["image"],
-                            width=220,
-                        )
+                    st.image(
+                        result["image"],
+                        width=220,
+                    )
 
 
-                        render_html(
-                            f"""
+                    html(
+                        f"""
 <div class="fv-distance">
     DISTANCE ·
     {result["distance"]:.4f}
@@ -1736,24 +2463,39 @@ if uploaded_file is not None:
     {result["height"]}
 </div>
 """
-                        )
+                    )
 
 
-            if failed_products > 0:
+        # =================================================
+        # SKIPPED ITEMS
+        # =================================================
 
-                render_html(
-                    f"""
+        if failed:
+
+            html(
+                f"""
 <div class="fv-info">
 
-    {failed_products}
+    {len(failed)}
     nearby candidates were skipped because
-    their high-resolution image was unavailable.
-    The next available high-resolution matches
+    their high-resolution image could not be
+    resolved. The next available matches
     were displayed.
 
 </div>
 """
-                )
+            )
+
+
+            with st.expander(
+                "Diagnostics"
+            ):
+
+                for failure in failed[:20]:
+
+                    st.write(
+                        failure
+                    )
 
 
         # =================================================
@@ -1761,9 +2503,10 @@ if uploaded_file is not None:
         # =================================================
 
         st.markdown(
-            "<div style='height:65px'></div>",
+            "<div style='height:60px'></div>",
             unsafe_allow_html=True,
         )
+
 
         _, button_col, _ = st.columns(
             [1, 1, 1]
@@ -1785,11 +2528,12 @@ if uploaded_file is not None:
         # =================================================
 
         st.markdown(
-            "<div style='height:70px'></div>",
+            "<div style='height:65px'></div>",
             unsafe_allow_html=True,
         )
 
-        render_html(
+
+        html(
             f"""
 <div class="fv-footer">
 
@@ -1809,5 +2553,29 @@ if uploaded_file is not None:
     except Exception as exc:
 
         st.error(
-            f"Could not process the uploaded image: {exc}"
+            "The application encountered an error."
+        )
+
+
+        # Never expose the HF token.
+        safe_error = str(
+            exc
+        ).replace(
+            HF_TOKEN,
+            "[HF_TOKEN_REDACTED]"
+        )
+
+
+        html(
+            f"""
+<div class="fv-debug">
+
+    <strong>Application diagnostic</strong>
+
+    <br><br>
+
+    {safe_error}
+
+</div>
+"""
         )
